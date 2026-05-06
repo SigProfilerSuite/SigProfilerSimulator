@@ -1,0 +1,80 @@
+name: Create Release from setup.py
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - master
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Upgrade pip, setuptools, packaging and install git-cliff
+        run: |
+          python -m pip install --upgrade pip setuptools packaging
+          pip install git-cliff
+
+      - name: Extract version from setup.py
+        id: get_version
+        run: |
+          VERSION=$(python setup.py --version)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get latest release tag
+        id: get_last_release
+        run: |
+          latest=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/${{ github.repository }}/releases/latest \
+            | jq -r '.tag_name' | sed 's/^v//')
+          echo "LATEST_RELEASE=$latest" >> $GITHUB_ENV
+
+      - name: Check release version
+        run: |
+          echo "New version: ${{ steps.get_version.outputs.VERSION }}"
+          echo "Latest release: $LATEST_RELEASE"
+          python - <<EOF
+          from packaging.version import parse
+
+          new_version = parse("${{ steps.get_version.outputs.VERSION }}")
+          latest_version = parse("$LATEST_RELEASE")
+
+          if new_version <= latest_version:
+              raise SystemExit(f"Error: New version ({new_version}) is not higher than latest release ({latest_version})")
+          EOF
+
+      - name: Generate CHANGELOG.md with git-cliff
+        run: |
+          git-cliff --unreleased --strip all --tag "v${{ steps.get_version.outputs.VERSION }}" > CHANGELOG.md
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag v${{ steps.get_version.outputs.VERSION }}
+          git push origin v${{ steps.get_version.outputs.VERSION }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.VERSION }}
+          body_path: CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

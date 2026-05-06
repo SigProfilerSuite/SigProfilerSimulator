@@ -1,0 +1,7 @@
+[changelog]
+# encabezado del changelog
+header = "# Changelog"
+
+[git]
+# no exigimos conventional commits
+conventional_commits = false
