@@ -60,14 +60,21 @@ jobs:
               raise SystemExit(f"Error: New version ({new_version}) is not higher than latest release ({latest_version})")
           EOF
 
-      - name: Generate CHANGELOG.md with git-cliff
+      - name: Generate release notes and update CHANGELOG.md
         run: |
-          git-cliff --unreleased --strip all --tag "v${{ steps.get_version.outputs.VERSION }}" > CHANGELOG.md
+          git-cliff --unreleased --strip all --tag "v${{ steps.get_version.outputs.VERSION }}" > RELEASE_NOTES.md
+          git-cliff --unreleased --tag "v${{ steps.get_version.outputs.VERSION }}" --prepend CHANGELOG.md
 
-      - name: Create Git tag
+      - name: Commit and push CHANGELOG.md
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
+          git add CHANGELOG.md
+          git commit -m "chore: update CHANGELOG.md for v${{ steps.get_version.outputs.VERSION }}"
+          git push origin HEAD:master
+
+      - name: Create Git tag
+        run: |
           git tag v${{ steps.get_version.outputs.VERSION }}
           git push origin v${{ steps.get_version.outputs.VERSION }}
 
@@ -75,6 +82,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.VERSION }}
-          body_path: CHANGELOG.md
+          body_path: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
