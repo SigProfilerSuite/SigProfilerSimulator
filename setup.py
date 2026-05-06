@@ -15,7 +15,7 @@ def readme():
         return long_description
 
 
-VERSION = "1.2.2"
+VERSION = "1.2.1"
 
 
 def write_version_py(filename="SigProfilerSimulator/version.py"):
@@ -24,7 +24,7 @@ def write_version_py(filename="SigProfilerSimulator/version.py"):
 # THIS FILE IS GENERATED FROM SIGPROFILERSIMULATOR SETUP.PY
 short_version = '%(version)s'
 version = '%(version)s'
-Update = 'v1.2.2: Add seed support and reproducibility tests'
+Update = 'v1.2.1: Add support for mm39'
 	
 	"""
     fh = open(filename, "w")
