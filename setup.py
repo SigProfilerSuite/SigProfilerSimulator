@@ -15,7 +15,7 @@ def readme():
         return long_description
 
 
-VERSION = "1.2.1"
+VERSION = "1.2.3"
 
 
 def write_version_py(filename="SigProfilerSimulator/version.py"):
