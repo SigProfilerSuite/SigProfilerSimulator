@@ -2,6 +2,8 @@
 [![License](https://img.shields.io/badge/License-BSD\%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
 [![Build Status](https://app.travis-ci.com/AlexandrovLab/SigProfilerSimulator.svg?branch=master)](https://app.travis-ci.com/AlexandrovLab/SigProfilerSimulator)
 
+<img src="docs/assets/images/SigProfilerSimulator.png" alt="SigProfilerSimulator" width="1000"/>
+
 # SigProfilerSimulator
 SigProfilerSimulator allows realistic simulations of mutational signatures in cancer genomes. The tool can simulate signatures of single base substitutions, double base substitutions, and insertions/deletions across the whole genome or user-defined regions. SigProfilerSimulator makes use of [SigProfilerMatrixGenerator](https://github.com/SigProfilerSuite/SigProfilerMatrixGenerator) and [SigProfilerPlotting](https://github.com/SigProfilerSuite/SigProfilerPlotting), seamlessly integrating with other tools in [SigProfilerSuite](https://github.com/SigProfilerSuite).
 
@@ -50,4 +52,4 @@ Released Jan 2011. Last updated March 2012. This genome was downloaded from ENSE
 rn6 (Rnor_6.0) INSDC Assembly GCA_000001895.4, Jul 2014. Released Jun 2015. Last updated Jan 2017. 
 This genome was downloaded from ENSEMBL database version 96.6.
 
-yeast (Saccharomyces cerevisiae S288C; assembly R64-2-1). Released Nov 2014. 
+yeast (Saccharomyces cerevisiae S288C; assembly R64-2-1). Released Nov 2014.
