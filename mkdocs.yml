@@ -1,0 +1,62 @@
+site_name: SigProfilerSimulator
+repo_name: SigProfilerSuite/SigProfilerSimulator
+repo_url: https://github.com/SigProfilerSuite/SigProfilerSimulator
+
+docs_dir: docs
+site_url: https://sigprofilersuite.github.io/SigProfilerSimulator/
+
+use_directory_urls: false
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - '1. Installation': '1_installation.md'
+      - '2. Quick Start Example': '2_quick_start_example.md'
+  - How It Works:
+      - '3. Workflow': '3_workflow.md'
+  - Using The Tool:
+      - '4. Using the Tool - Input': '4_using_the_tool_input.md'
+      - '5. Using the Tool - Output': '5_using_the_tool_output.md'
+  - Reference:
+      - '6. Supported Genomes': '6_supported_genomes.md'
+
+plugins:
+  - search
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+hooks:
+  - mkdocs_hooks.py
