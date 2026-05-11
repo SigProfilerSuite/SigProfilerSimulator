@@ -33,10 +33,13 @@ nav:
   - Getting Started:
       - '1. Installation': '1_installation.md'
       - '2. Quick Start Example': '2_quick_start_example.md'
+  - How It Works:
+      - '3. Workflow': '3_workflow.md'
   - Using The Tool:
-      - '3. Using the Tool': '3_using_the_tool.md'
+      - '4. Using the Tool - Input': '4_using_the_tool_input.md'
+      - '5. Using the Tool - Output': '5_using_the_tool_output.md'
   - Reference:
-      - '4. Supported Genomes': '4_supported_genomes.md'
+      - '6. Supported Genomes': '6_supported_genomes.md'
 
 plugins:
   - search

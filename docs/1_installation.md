@@ -71,4 +71,4 @@ For a full list of supported reference genomes, refer to the [Supported Genomes]
   [1]: https://www.python.org/downloads
   [2]: https://sigprofilersuite.github.io/SigProfilerMatrixGenerator/
   [3]: https://github.com/SigProfilerSuite/SigProfilerSimulator/releases
-  [4]: https://sigprofilersuite.github.io/SigProfilerSimulator/4_supported_genomes.html
+  [4]: https://sigprofilersuite.github.io/SigProfilerSimulator/6_supported_genomes.html

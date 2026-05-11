@@ -50,5 +50,5 @@ In the above example, unspecified parameters use their default values. All funct
 
   [1]: https://sigprofilersuite.github.io/SigProfilerSimulator/1_installation.html
   [2]: https://sigprofilersuite.github.io/SigProfilerMatrixGenerator/
-  [3]: https://sigprofilersuite.github.io/SigProfilerSimulator/3_using_the_tool.html
-  [4]: https://sigprofilersuite.github.io/SigProfilerSimulator/4_supported_genomes.html
+  [3]: https://sigprofilersuite.github.io/SigProfilerSimulator/4_using_the_tool_input.html
+  [4]: https://sigprofilersuite.github.io/SigProfilerSimulator/6_supported_genomes.html
