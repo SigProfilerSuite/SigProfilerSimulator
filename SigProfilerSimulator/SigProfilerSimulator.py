@@ -16,6 +16,7 @@ import argparse
 import datetime
 import shutil
 import multiprocessing as mp
+mp.set_start_method("spawn", force=True)
 import numpy as np
 import platform
 import pandas as pd
