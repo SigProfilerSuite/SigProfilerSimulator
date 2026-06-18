@@ -16,7 +16,6 @@ import argparse
 import datetime
 import shutil
 import multiprocessing as mp
-mp.set_start_method("spawn", force=True)
 import numpy as np
 import platform
 import pandas as pd
@@ -411,7 +410,7 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 	max_seed = processors
 	if processors > len(chromosomes):
 		max_seed = len(chromosomes)
-	pool = mp.Pool(max_seed)
+	pool = mp.get_context("fork").Pool(max_seed)
 
 	chrom_break = len(chromosomes)/max_seed
 	chromosomes_parallel = [[] for i in range(max_seed)]
@@ -464,7 +463,7 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 				shutil.rmtree(seqOut_path+ context + "/")
 				os.makedirs(seqOut_path+ context + "/")
 
-	pool = mp.Pool(max_seed)
+	pool = mp.get_context("fork").Pool(max_seed)
 	results = []
 	for i in range (0, len(chromosomes_parallel), 1):
 		mut_dict_parallel = {k1:{k2:{k3:{k4:v4 for k4, v4 in v3.items() if k4 in chromosomes_parallel[i]} for k3, v3 in v2.items()} for k2, v2 in v1.items()} for k1, v1 in mut_dict.items()}
@@ -479,7 +478,7 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 			# Raises an error when not successful
 			r.get()
 
-	pool = mp.Pool(max_seed)
+	pool = mp.get_context("fork").Pool(max_seed)
 
 	#if region:
 	bed=False
