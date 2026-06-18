@@ -436,8 +436,8 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 	log_out.write("\n-------Seeds for random number generation per process------- \n")
 	seeds = []
 	if seed_file == None:
-		ref_dir, tail = os.path.split(os.path.dirname(os.path.abspath(__file__)))
-		seed_file = ref_dir + "/SigProfilerSimulator/seeds.txt"
+		sps_dir, tail = os.path.split(os.path.dirname(os.path.abspath(__file__)))
+		seed_file = sps_dir + "/SigProfilerSimulator/seeds.txt"
 	with open(seed_file) as f:
 		for i in range (0, max_seed, 1):
 			new_seed = int(int(f.readline().strip()) / time.time())
@@ -449,7 +449,7 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 
 	if exome:
 		bed = True
-		bed_file = ref_dir + "/SigProfilerMatrixGenerator/references/chromosomes/exome/" + genome + "/" + genome + "_exome.interval_list"
+		bed_file = ref_dir + "/references/chromosomes/exome/" + genome + "/" + genome + "_exome.interval_list"
 
 	if seqInfo:
 		seqOut_path = project_path + "output/vcf_files/simulations/"
