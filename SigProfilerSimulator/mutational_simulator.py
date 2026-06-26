@@ -67,7 +67,7 @@ def probability_mask (chrom, mask):
 	if chrom not in maskMatrix.index:
 		return(maskRanges, maskProbs)
 	else:
-		maskMatrix = maskMatrix.loc[chrom]
+		maskMatrix = maskMatrix.loc[[chrom]]
 		maskMatrix["Lengths"] = maskMatrix["End"] - maskMatrix["Start"] + 1
 		maskRanges = [[x,y] for x,y in zip(list(maskMatrix["Start"]), list(maskMatrix["Lengths"]))]
 		maskProbs = list(maskMatrix["Probability"])
