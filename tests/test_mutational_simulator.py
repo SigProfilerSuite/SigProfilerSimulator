@@ -279,6 +279,23 @@ class TestContextIdentifier:
         assert ctx == "DBS186"
         assert nuc == "T:AC"
 
+    def test_sbs24(self):
+        # Length-5 SBS (prefix=1, ref=3) maps to context "24"
+        ctx, nuc = context_identifier("A[C>T")
+        assert ctx == "24"
+        assert nuc == "AC"
+
+    def test_sbs_unsupported_length_exits(self):
+        # Length-13 SBS (prefix=4, ref=6) is not in the supported set
+        with pytest.raises(SystemExit):
+            context_identifier("AAAA[C>A]TTTT")
+
+    def test_dbs_unsupported_length_prints(self):
+        # DBS with length != 5 and != 7 prints a warning but does not exit
+        ctx, nuc = context_identifier("AC>")
+        assert ctx == "DBS"
+        assert nuc == "AC"
+
     def test_invalid_mutation_exits(self):
         with pytest.raises(SystemExit):
             context_identifier("INVALID")

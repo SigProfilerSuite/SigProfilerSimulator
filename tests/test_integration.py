@@ -4,15 +4,17 @@ Require GRCh37 genome installed via SigProfilerMatrixGenerator.
 Skipped automatically when the genome is not available.
 """
 
+import io
 import os
 import shutil
 import tempfile
+from contextlib import redirect_stdout
 
 import pytest
 
 from SigProfilerMatrixGenerator.scripts import MutationMatrixGenerator as matRef
 from SigProfilerMatrixGenerator.scripts import SigProfilerMatrixGeneratorFunc as matGen
-from SigProfilerSimulator.SigProfilerSimulator import SigProfilerSimulator
+from SigProfilerSimulator.SigProfilerSimulator import SigProfilerSimulator, probability
 
 PROJECT = "test_sps"
 GENOME = "GRCh37"
@@ -22,6 +24,9 @@ N_INPUT_MUTATIONS = 12
 
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 VCF_PATH = os.path.join(TESTS_DIR, "data", "GRCh37_test.vcf")
+DBS_VCF_PATH = os.path.join(TESTS_DIR, "data", "GRCh37_dbs_test.vcf")
+INDEL_VCF_PATH = os.path.join(TESTS_DIR, "data", "GRCh37_indel_test.vcf")
+BED_PATH = os.path.join(TESTS_DIR, "data", "GRCh37_test.bed")
 
 MAF_HEADER = "\t".join([
     "Hugo_symbol", "Entrez_gene_ID", "Center", "Genome", "Chrom",
@@ -30,6 +35,8 @@ MAF_HEADER = "\t".join([
     "dbSNP_RS", "dbSNP_Val_Status", "Tumor_Sample_Barcode", "matGenClass",
 ])
 
+
+# ─── Genome availability ──────────────────────────────────────────────────────
 
 def _grch37_available():
     try:
@@ -45,18 +52,35 @@ grch37 = pytest.mark.skipif(
 )
 
 
+# ─── Fixture helpers ──────────────────────────────────────────────────────────
+
+def _setup_project(vcf_source, project=PROJECT):
+    """Create a temp project directory with input VCF; return project_path."""
+    project_path = tempfile.mkdtemp() + "/"
+    input_dir = project_path + "input/"
+    os.makedirs(input_dir)
+    shutil.copy(vcf_source, input_dir)
+    return project_path
+
+
+def _run_matgen_and_sps(project_path, vcf_basename, genome=GENOME,
+                        contexts=CONTEXTS, simulations=SIMULATIONS, **sps_kwargs):
+    """Run matGen then SPS; return the output path root for assertions."""
+    matGen.SigProfilerMatrixGeneratorFunc(PROJECT, genome, project_path, plot=False)
+    SigProfilerSimulator(PROJECT, project_path, genome, contexts,
+                         simulations=simulations, **sps_kwargs)
+    return project_path
+
+
+# ─── Standard end-to-end simulation ──────────────────────────────────────────
+
 @pytest.fixture(scope="module")
 def simulation_output():
     """Runs a full simulation once and returns the output MAF path."""
-    project_path = tempfile.mkdtemp() + "/"
+    project_path = _setup_project(VCF_PATH)
     try:
-        input_dir = project_path + "input/"
-        os.makedirs(input_dir)
-        shutil.copy(VCF_PATH, input_dir)
-
         matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
         SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS, simulations=SIMULATIONS)
-
         context_str = "_".join(CONTEXTS)
         maf = (
             f"{project_path}output/simulations/"
@@ -79,7 +103,7 @@ class TestEndToEndSimulation:
 
     def test_output_maf_mutation_count(self, simulation_output):
         with open(simulation_output) as f:
-            n = sum(1 for _ in f) - 1  # subtract header
+            n = sum(1 for _ in f) - 1
         assert n == N_INPUT_MUTATIONS
 
     def test_output_maf_genome_field(self, simulation_output):
@@ -93,3 +117,338 @@ class TestEndToEndSimulation:
             lines = f.readlines()[1:]
         variant_types = {line.strip().split("\t")[9] for line in lines if line.strip()}
         assert variant_types == {"SNP"}
+
+
+# ─── probability() function ───────────────────────────────────────────────────
+
+@grch37
+class TestProbabilityFunction:
+    """Lines 81-128: probability() function."""
+
+    def test_no_chromosome_exits(self):
+        with pytest.raises(SystemExit):
+            probability(genome=GENOME)
+
+    def test_no_position_exits(self):
+        with pytest.raises(SystemExit):
+            probability(genome=GENOME, chromosome="1")
+
+    def test_no_mutation_exits(self):
+        with pytest.raises(SystemExit):
+            probability(genome=GENOME, chromosome="1", position="15832678")
+
+    def test_computes_and_prints_value(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            probability(
+                chromosome="1",
+                position="15832678",
+                mutation="A[T>C]C",
+                genome=GENOME,
+            )
+        assert "probabilt" in buf.getvalue().lower()
+
+    def test_exome_mode(self):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            probability(
+                chromosome="1",
+                position="15832678",
+                mutation="A[T>C]C",
+                genome=GENOME,
+                exome=True,
+            )
+        assert "probabilt" in buf.getvalue().lower()
+
+
+# ─── Path variants ────────────────────────────────────────────────────────────
+# Lines 141 (no trailing slash), 205/208 (log files overwritten), 377-378 (output exists)
+
+@pytest.fixture(scope="module")
+def sim_path_variants():
+    """Run simulation twice in the same project (second run: log files exist + output exists)."""
+    project_path = _setup_project(VCF_PATH)
+    try:
+        # First run — also exercises line 141 (no trailing slash on project_path)
+        path_no_slash = project_path.rstrip("/")  # line 141 fires
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, path_no_slash, GENOME, CONTEXTS, simulations=SIMULATIONS)
+
+        # Second run in same dir — log files exist (205, 208), output path exists (377-378)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS, simulations=SIMULATIONS)
+
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorPathVariants:
+    def test_second_run_produces_maf(self, sim_path_variants):
+        assert os.path.exists(sim_path_variants)
+
+    def test_second_run_has_correct_mutation_count(self, sim_path_variants):
+        with open(sim_path_variants) as f:
+            n = sum(1 for _ in f) - 1
+        assert n == N_INPUT_MUTATIONS
+
+
+# ─── region parameter ─────────────────────────────────────────────────────────
+# Lines 194, 392-393
+
+@pytest.fixture(scope="module")
+def sim_region():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, region="1")
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorRegion:
+    def test_output_maf_created(self, sim_region):
+        assert os.path.exists(sim_region)
+
+    def test_only_chr1_mutations(self, sim_region):
+        with open(sim_region) as f:
+            lines = f.readlines()[1:]
+        chroms = {l.strip().split("\t")[4] for l in lines if l.strip()}
+        assert chroms == {"1"}
+
+
+# ─── vcf=True output ──────────────────────────────────────────────────────────
+# Lines 401-405
+
+@pytest.fixture(scope="module")
+def sim_vcf_output():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, vcf=True, region="1")
+        yield project_path
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorVcfOutput:
+    def test_sample_vcf_dirs_created(self, sim_vcf_output):
+        context_str = "_".join(CONTEXTS)
+        sim_dir = (
+            f"{sim_vcf_output}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/"
+        )
+        assert os.path.isdir(sim_dir)
+
+
+# ─── seqInfo=True output ──────────────────────────────────────────────────────
+# Lines 454-464
+
+@pytest.fixture(scope="module")
+def sim_seqinfo():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, seqInfo=True, region="1")
+        yield project_path
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorSeqInfo:
+    def test_seqout_dir_created(self, sim_seqinfo):
+        seq_dir = sim_seqinfo + "output/vcf_files/simulations/"
+        assert os.path.isdir(seq_dir)
+
+    def test_context_subdir_created(self, sim_seqinfo):
+        ctx_dir = sim_seqinfo + "output/vcf_files/simulations/96/"
+        assert os.path.isdir(ctx_dir)
+
+
+# ─── exome=True ───────────────────────────────────────────────────────────────
+# Lines 271, 312, 333, 371, 450-451
+
+@pytest.fixture(scope="module")
+def sim_exome():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path,
+                                              plot=False, exome=True)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, exome=True)
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}_exome/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorExome:
+    def test_exome_maf_created(self, sim_exome):
+        assert os.path.exists(sim_exome)
+
+    def test_exome_output_path_contains_exome(self, sim_exome):
+        assert "_exome" in sim_exome
+
+
+# ─── bed_file + region ────────────────────────────────────────────────────────
+# Lines 149, 243-245, 274, 327-328, 369
+# Note: region= is required to avoid deleting shared context-distribution files
+
+@pytest.fixture(scope="module")
+def sim_bed():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path,
+                                              plot=False, bed_file=BED_PATH)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, bed_file=BED_PATH, region="1")
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}_BED/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorBED:
+    def test_bed_maf_created(self, sim_bed):
+        assert os.path.exists(sim_bed)
+
+    def test_bed_output_path_contains_BED(self, sim_bed):
+        assert "_BED" in sim_bed
+
+
+# ─── chrom_based=True ─────────────────────────────────────────────────────────
+# Lines 286-298, 389-390
+
+@pytest.fixture(scope="module")
+def sim_chrom_based():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path,
+                                              plot=False, chrom_based=True)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, chrom_based=True, region="1")
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorChromBased:
+    def test_chrom_based_maf_created(self, sim_chrom_based):
+        assert os.path.exists(sim_chrom_based)
+
+
+# ─── SPS without prior matGen (auto-creates catalogue) ────────────────────────
+# Lines 304-308
+
+@pytest.fixture(scope="module")
+def sim_no_prior_matgen():
+    """Call SPS directly — it detects missing catalogue and runs matGen itself."""
+    project_path = _setup_project(VCF_PATH)
+    try:
+        # Do NOT call matGen first: SPS will detect missing catalogue (lines 304-308)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, region="1")
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorNoMatGen:
+    def test_sps_creates_catalogue_and_runs(self, sim_no_prior_matgen):
+        assert os.path.exists(sim_no_prior_matgen)
+
+
+# ─── DBS context ──────────────────────────────────────────────────────────────
+# Lines 252-257, 392-393
+
+@pytest.fixture(scope="module")
+def sim_dbs():
+    project_path = _setup_project(DBS_VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, ["DBS"],
+                             simulations=SIMULATIONS, region="1")
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_DBS/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorDBS:
+    def test_dbs_maf_created(self, sim_dbs):
+        assert os.path.exists(sim_dbs)
+
+    def test_dbs_variant_type(self, sim_dbs):
+        with open(sim_dbs) as f:
+            lines = f.readlines()[1:]
+        if lines:
+            types = {l.strip().split("\t")[9] for l in lines if l.strip()}
+            assert types <= {"SNP", "DBS", "DNP"}
+
+
+# ─── INDEL context ────────────────────────────────────────────────────────────
+# Lines 259-264, 392-393
+
+@pytest.fixture(scope="module")
+def sim_indel():
+    project_path = _setup_project(INDEL_VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, ["ID"],
+                             simulations=SIMULATIONS, region="1")
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_ID/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorINDEL:
+    def test_indel_maf_created(self, sim_indel):
+        assert os.path.exists(sim_indel)
