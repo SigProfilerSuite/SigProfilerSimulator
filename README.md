@@ -1,4 +1,4 @@
-[![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://osf.io/usxjz/wiki/home/)
+[![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://sigprofilersuite.github.io/SigProfilerSimulator/)
 [![License](https://img.shields.io/badge/License-BSD\%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
 [![Build Status](https://app.travis-ci.com/AlexandrovLab/SigProfilerSimulator.svg?branch=master)](https://app.travis-ci.com/AlexandrovLab/SigProfilerSimulator)
 
@@ -6,6 +6,9 @@
 
 # SigProfilerSimulator
 SigProfilerSimulator allows realistic simulations of mutational signatures in cancer genomes. The tool can simulate signatures of single base substitutions, double base substitutions, and insertions/deletions across the whole genome or user-defined regions. SigProfilerSimulator makes use of [SigProfilerMatrixGenerator](https://github.com/SigProfilerSuite/SigProfilerMatrixGenerator) and [SigProfilerPlotting](https://github.com/SigProfilerSuite/SigProfilerPlotting), seamlessly integrating with other tools in [SigProfilerSuite](https://github.com/SigProfilerSuite).
+
+## Documentation
+Detailed documentation can be found at https://sigprofilersuite.github.io/SigProfilerSimulator.
 
 ## Quick Start Guide
 ### Installation
