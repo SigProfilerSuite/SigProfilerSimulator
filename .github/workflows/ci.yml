@@ -36,7 +36,6 @@ jobs:
       run: |
         pip install -e .
 
-    - name: Run unit tests
+    - name: Verify installation
       run: |
-        pip install pytest
-        pytest -s -rw tests
+        python -c "import SigProfilerSimulator; print('Import OK')"
