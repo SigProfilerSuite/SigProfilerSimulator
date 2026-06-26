@@ -1,6 +1,6 @@
 [![Docs](https://img.shields.io/badge/docs-latest-blue.svg)](https://sigprofilersuite.github.io/SigProfilerSimulator/)
 [![License](https://img.shields.io/badge/License-BSD\%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
-[![Build Status](https://app.travis-ci.com/AlexandrovLab/SigProfilerSimulator.svg?branch=master)](https://app.travis-ci.com/AlexandrovLab/SigProfilerSimulator)
+[![CI](https://github.com/SigProfilerSuite/SigProfilerSimulator/actions/workflows/ci.yml/badge.svg)](https://github.com/SigProfilerSuite/SigProfilerSimulator/actions/workflows/ci.yml)
 
 <img src="docs/assets/images/SigProfilerSimulator.png" alt="SigProfilerSimulator" width="1000"/>
 
