@@ -36,6 +36,14 @@ jobs:
       run: |
         pip install -e .
 
+    - name: Install test dependencies
+      run: |
+        pip install pytest
+
     - name: Verify installation
       run: |
         python -c "import SigProfilerSimulator; print('Import OK')"
+
+    - name: Run tests
+      run: |
+        pytest tests/ -v
