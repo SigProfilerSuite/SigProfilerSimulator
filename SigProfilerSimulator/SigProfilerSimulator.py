@@ -65,7 +65,7 @@ def context_identifier (mutation):
 		context = "DBS"
 		nuc = nuc.split(">")[0]
 		if mutation_length == 5:
-			context += 78
+			context += "78"
 		elif mutation_length == 7:
 			context += "186"
 		else:
