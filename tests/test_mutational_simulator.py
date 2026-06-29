@@ -6,6 +6,7 @@ Run with: pytest tests/test_mutational_simulator.py -v
 
 import sys
 import os
+import random
 import pytest
 import numpy as np
 
@@ -176,6 +177,13 @@ class TestRandomBase:
         for _ in range(20):
             assert random_base(2, 2) == "C"
 
+    def test_same_seed_reproduces(self):
+        random.seed(7)
+        r1 = [random_base(0, 3) for _ in range(20)]
+        random.seed(7)
+        r2 = [random_base(0, 3) for _ in range(20)]
+        assert r1 == r2
+
 
 # ─── random_base_sub ──────────────────────────────────────────────────────────
 
@@ -191,6 +199,13 @@ class TestRandomBaseSub:
     def test_covers_all_chars_in_set(self):
         results = {random_base_sub("ACGT") for _ in range(500)}
         assert results == {"A", "C", "G", "T"}
+
+    def test_same_seed_reproduces(self):
+        random.seed(7)
+        r1 = [random_base_sub("ACGT") for _ in range(20)]
+        random.seed(7)
+        r2 = [random_base_sub("ACGT") for _ in range(20)]
+        assert r1 == r2
 
 
 # ─── noise ────────────────────────────────────────────────────────────────────
@@ -239,6 +254,28 @@ class TestNoise:
             s = {"C>A": 1}
             noise(s, noiseUniform=500)
             assert s["C>A"] >= 0
+
+    def test_poisson_same_seed_reproduces(self):
+        np.random.seed(7)
+        s1 = {"C>A": 100, "C>G": 50, "C>T": 200}
+        noise(s1, noisePoisson=True)
+
+        np.random.seed(7)
+        s2 = {"C>A": 100, "C>G": 50, "C>T": 200}
+        noise(s2, noisePoisson=True)
+
+        assert s1 == s2
+
+    def test_uniform_same_seed_reproduces(self):
+        np.random.seed(7)
+        s1 = {"C>A": 1000, "C>G": 500}
+        noise(s1, noiseUniform=20)
+
+        np.random.seed(7)
+        s2 = {"C>A": 1000, "C>G": 500}
+        noise(s2, noiseUniform=20)
+
+        assert s1 == s2
 
 
 # ─── context_identifier ───────────────────────────────────────────────────────
