@@ -22,7 +22,6 @@ from SigProfilerMatrixGenerator.scripts import MutationMatrixGenerator as matRef
 # from pympler.tracker import SummaryTracker
 import pandas as pd
 import re
-start_run = time.time()
 
 
 #################################### Functions ###########################################
@@ -136,7 +135,7 @@ def combine_simulation_files (iterations, output_path, chromosomes, samples=[], 
 						with open(output_path + str(i) + "_" + chrom + extension + ".maf",'rb') as fd:
 							shutil.copyfileobj(fd, f)
 						os.remove(output_path  + str(i) + "_" + chrom + extension + ".maf")
-					except:
+					except FileNotFoundError:
 						pass
 
 def chrom_proportions (chrom_path, genome, chromosomes):
@@ -2324,7 +2323,6 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 								# stalling on a rare/non-existent mutation
 								l += 1
 								if l > 1000000:
-									logging.info(sample + " " + mutationsCount)
 									print (sample, mutationsCount, chrom)
 								# 	if sample not in left_over_mutations:
 								# 		left_over_mutations[sample] = {}
