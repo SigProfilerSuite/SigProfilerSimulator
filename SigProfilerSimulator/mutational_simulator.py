@@ -1249,7 +1249,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 														# print(chrom, mutationsCount)
 														u = 0
 													except:
-														sys.stderr.write(mainType_ins, complete_indel, indel_types, mutationsCount)
+														sys.stderr.write(f"{mainType_ins} {complete_indel} {indel_types} {mutationsCount}\n")
 														print(mainType_ins, complete_indel, indel_types, mutationsCount)
 													if mutationsCount[complete_indel] == 0:
 														del mutationsCount[complete_indel]
@@ -1960,7 +1960,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 															# print(chrom, tsb_type, mutationsCountTSB[tsb_type])
 															u = 0
 														except:
-															sys.stderr.write(mainType_ins, complete_indel, indel_types[tsb_type], mutationsCountTSB)
+															sys.stderr.write(f"{mainType_ins} {complete_indel} {indel_types[tsb_type]} {mutationsCountTSB}\n")
 															# print(mainType_ins, complete_indel, indel_types[tsb_type], mutationsCountTSB)
 														if mutationsCountTSB[tsb_type][complete_indel] == 0:
 															del mutationsCountTSB[tsb_type][complete_indel]
