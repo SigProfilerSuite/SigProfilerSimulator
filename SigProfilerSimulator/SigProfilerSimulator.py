@@ -404,8 +404,6 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 	max_seed = processors
 	if processors > len(chromosomes):
 		max_seed = len(chromosomes)
-	pool = mp.get_context("fork").Pool(max_seed)
-
 	chrom_break = len(chromosomes)/max_seed
 	chromosomes_parallel = [[] for i in range(max_seed)]
 
@@ -472,20 +470,21 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 			# Raises an error when not successful
 			r.get()
 
-	pool = mp.get_context("fork").Pool(max_seed)
+	combine_pool = mp.get_context("fork").Pool(max_seed)
 
 	#if region:
 	bed=False
 
+	combine_results = []
 	for i in range (0, len(iterations_parallel), 1):
-		r = pool.apply_async(simScript.combine_simulation_files, args=(iterations_parallel[i], output_path, chromosomes, sample_names, bed, exome, vcf))
-	pool.close()
-	pool.join()
+		r = combine_pool.apply_async(simScript.combine_simulation_files, args=(iterations_parallel[i], output_path, chromosomes, sample_names, bed, exome, vcf))
+		combine_results.append(r)
+	combine_pool.close()
+	combine_pool.join()
 
-	for r in results:
+	for r in combine_results:
 		r.wait()
 		if not r.successful():
-			# Raises an error when not successful
 			r.get()
 
 	end_run = time.time()
