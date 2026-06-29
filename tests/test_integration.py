@@ -24,6 +24,12 @@ N_INPUT_MUTATIONS = 12
 
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 VCF_PATH = os.path.join(TESTS_DIR, "data", "GRCh37_test.vcf")
+SEED_FILE = os.path.join(
+    os.path.dirname(TESTS_DIR), "SigProfilerSimulator", "seeds.txt"
+)
+REPRODUCIBILITY_FIXTURE = os.path.join(
+    TESTS_DIR, "fixtures", "reproducibility", "GRCh37_96_region1_seed_fixed.maf"
+)
 DBS_VCF_PATH = os.path.join(TESTS_DIR, "data", "GRCh37_dbs_test.vcf")
 INDEL_VCF_PATH = os.path.join(TESTS_DIR, "data", "GRCh37_indel_test.vcf")
 BED_PATH = os.path.join(TESTS_DIR, "data", "GRCh37_test.bed")
@@ -452,3 +458,41 @@ def sim_indel():
 class TestSimulatorINDEL:
     def test_indel_maf_created(self, sim_indel):
         assert os.path.exists(sim_indel)
+
+
+# ─── Reproducibility ──────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="module")
+def sim_reproducibility():
+    """Run two simulations with the same seed_file; return both MAF paths."""
+    results = []
+    for _ in range(2):
+        project_path = _setup_project(VCF_PATH)
+        try:
+            matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+            SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                                 simulations=SIMULATIONS, region="1", seed_file=SEED_FILE)
+            maf = (
+                f"{project_path}output/simulations/"
+                f"{PROJECT}_simulations_{GENOME}_96/{SIMULATIONS}.maf"
+            )
+            results.append((project_path, maf))
+        except Exception:
+            shutil.rmtree(project_path, ignore_errors=True)
+            raise
+    yield results[0][1], results[1][1]
+    for project_path, _ in results:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestReproducibility:
+    def test_two_runs_same_seed_identical(self, sim_reproducibility):
+        maf1, maf2 = sim_reproducibility
+        with open(maf1) as f1, open(maf2) as f2:
+            assert f1.read() == f2.read()
+
+    def test_output_matches_stored_fixture(self, sim_reproducibility):
+        maf1, _ = sim_reproducibility
+        with open(maf1) as f, open(REPRODUCIBILITY_FIXTURE) as ref:
+            assert f.read() == ref.read()
