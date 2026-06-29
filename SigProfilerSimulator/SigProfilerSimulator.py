@@ -403,12 +403,15 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 	# Generate unique seeds for each process
 	log_out.write("\n-------Seeds for random number generation per process------- \n")
 	seeds = []
-	if seed_file == None:
+	randomize_seed = seed_file is None
+	if randomize_seed:
 		sps_dir, tail = os.path.split(os.path.dirname(os.path.abspath(__file__)))
 		seed_file = sps_dir + "/SigProfilerSimulator/seeds.txt"
 	with open(seed_file) as f:
 		for i in range (0, max_seed, 1):
-			new_seed = int(int(f.readline().strip()) / time.time())
+			new_seed = int(f.readline().strip())
+			if randomize_seed:
+				new_seed = int(new_seed / time.time())
 			seeds.append(new_seed)
 			log_out.write("Process " + str(i) + ": " + str(new_seed) + "\n")
 
