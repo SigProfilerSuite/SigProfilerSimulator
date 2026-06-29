@@ -19,11 +19,11 @@ import multiprocessing as mp
 import numpy as np
 import platform
 import pandas as pd
-import SigProfilerSimulator as sigSim
 import SigProfilerMatrixGenerator as sig
 from SigProfilerMatrixGenerator.scripts import MutationMatrixGenerator as matRef
 from SigProfilerMatrixGenerator.scripts import SigProfilerMatrixGeneratorFunc as matGen
 from . import mutational_simulator as simScript
+from .version import short_version as _sps_version
 from SigProfilerMatrixGenerator.scripts import save_context_distribution as context_dist
 
 
@@ -188,7 +188,7 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 	log_out.write("Operating System Name: "+ platform.uname()[0]+"\n"+"Nodename: "+ platform.uname()[1]+"\n"+"Release: "+ platform.uname()[2]+"\n"+"Version: "+ platform.uname()[3]+"\n")
 	log_out.write("\n-------Python and Package Versions------- \n")
 	log_out.write("Python Version: "+str(platform.sys.version_info.major)+"."+str(platform.sys.version_info.minor)+"."+str(platform.sys.version_info.micro)+"\n")
-	log_out.write("SigProfilerSimulator Version: "+sigSim.__version__+"\n")
+	log_out.write(f"SigProfilerSimulator Version: {_sps_version}\n")
 	log_out.write("SigProfilerMatrixGenerator Version: "+sig.__version__+"\n")
 	log_out.write("numpy version: "+np.__version__+"\n")
 	
