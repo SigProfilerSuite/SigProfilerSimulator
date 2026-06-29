@@ -71,8 +71,10 @@ def probability_mask (chrom, mask):
 		maskRanges = [[x,y] for x,y in zip(list(maskMatrix["Start"]), list(maskMatrix["Lengths"]))]
 		maskProbs = list(maskMatrix["Probability"])
 		if abs(sum(maskProbs) - 1) > 0.01:
-			print("Mutation rate mask distribution is incomplete. Please ensure that the distribution probabilites sums to 1 across each chromosome.")
-			sys.exit()
+			raise ValueError(
+				"Mutation rate mask distribution is incomplete. "
+				"Probabilities must sum to 1 across each chromosome."
+			)
 		return(maskRanges, maskProbs)
 
 def noise (samples, noisePoisson=False, noiseUniform=0):

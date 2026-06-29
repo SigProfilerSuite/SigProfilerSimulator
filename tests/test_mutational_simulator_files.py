@@ -110,7 +110,7 @@ class TestProbabilityMask:
         assert ranges == [[0, 5000]]
         assert probs == [1.0]
 
-    def test_invalid_probs_exits(self, tmp_path):
+    def test_invalid_probs_raises(self, tmp_path):
         bad = (
             "Chrom\tStart\tEnd\tProbability\n"
             "1\t0\t999\t0.3\n"
@@ -118,7 +118,7 @@ class TestProbabilityMask:
         )
         p = tmp_path / "bad_mask.tsv"
         p.write_text(bad)
-        with pytest.raises(SystemExit):
+        with pytest.raises(ValueError):
             probability_mask("1", str(p))
 
 

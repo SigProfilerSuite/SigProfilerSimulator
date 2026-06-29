@@ -125,16 +125,16 @@ class TestEndToEndSimulation:
 class TestProbabilityFunction:
     """Lines 81-128: probability() function."""
 
-    def test_no_chromosome_exits(self):
-        with pytest.raises(SystemExit):
+    def test_no_chromosome_raises(self):
+        with pytest.raises(ValueError):
             probability(genome=GENOME)
 
-    def test_no_position_exits(self):
-        with pytest.raises(SystemExit):
+    def test_no_position_raises(self):
+        with pytest.raises(ValueError):
             probability(genome=GENOME, chromosome="1")
 
-    def test_no_mutation_exits(self):
-        with pytest.raises(SystemExit):
+    def test_no_mutation_raises(self):
+        with pytest.raises(ValueError):
             probability(genome=GENOME, chromosome="1", position="15832678")
 
     def test_computes_and_prints_value(self):

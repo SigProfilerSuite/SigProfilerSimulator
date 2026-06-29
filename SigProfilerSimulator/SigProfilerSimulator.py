@@ -59,8 +59,7 @@ def context_identifier (mutation):
 		elif mutation_length == 11:
 			context += "6144"	
 		else:
-			print(mutation, " is not supported by this function.")
-			sys.exit()
+			raise ValueError(f"{mutation} is not supported by this function.")
 	elif mutation_prefix in DBS_prefix and mutation_ref in DBS_ref:
 		context = "DBS"
 		nuc = nuc.split(">")[0]
@@ -71,8 +70,7 @@ def context_identifier (mutation):
 		else:
 			print(mutation, " is not supported by this function")
 	else:
-		print(mutation, " is not supported by this function.")
-		sys.exit()
+		raise ValueError(f"{mutation} is not supported by this function.")
 
 	return(context, nuc)
 
@@ -81,17 +79,13 @@ def probability (chromosome=None, position=None, mutation=None, context=None, ge
 	chromosome_string_path, ref_dir = matRef.reference_paths(genome)
 	if not mutation_file:
 		if not genome:
-			print("No genome provided")
-			sys.exit()
+			raise ValueError("No genome provided.")
 		if not chromosome:
-			print("No chromosome provided")
-			sys.exit()
+			raise ValueError("No chromosome provided.")
 		if not position:
-			print("No position provided")
-			sys.exit()
+			raise ValueError("No position provided.")
 		if not mutation:
-			print("No mutation provided.")
-			sys.exit()
+			raise ValueError("No mutation provided.")
 
 
 
