@@ -100,27 +100,6 @@ def probability (chromosome=None, position=None, mutation=None, context=None, ge
 		prob = mutation_count/nucleotide_count
 		print("The probabilty of seeing", mutation, " on chromosome", chromosome, "at position", str(position), "is equal to:\n\n\t\t",str(prob))
 
-	# else:
-	# 	first_line = True
-	# 	output_path = os.path.dirname(mutation_file)
-	# 	with open(mutation_file) as f, open(output_path + "probabilties.txt", "w") as out:
-	# 		for lines in f:
-	# 			lines = lines.strip().split()
-	# 			chrom = lines[0]
-	# 			pos = lines[1]
-	# 			mutation = lines[2]
-	# 			exome = lines[3]
-	# 			context = context_identifier(mutation)
-	# 			if first_line:
-	# 				nucleotide_context_file += "context_counts_" + genome + "_" + context + ".csv"
-	# 				count_mat = pd.DataFrame.from_csv(nucleotide_context_file, sep=',', header=0)
-	# 				first_line = False
-	# 			prob = mutation_count/nucleotide_count
-	# 			print("\t".join([chrom, pos, mutation, prob]), file=out)
-
-
-		pass
-
 
 
 def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, simulations=1, updating=False, bed_file=None, overlap=False, gender='female', seqInfo=False, chrom_based=False, seed_file=None, spacing=1, noisePoisson=False, noiseUniform=0, cushion=100, region=None, vcf=False, mask=None):
