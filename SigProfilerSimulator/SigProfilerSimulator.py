@@ -149,7 +149,6 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 
 	chromosome_string_path, ref_dir = matRef.reference_paths(genome)
 	if species == 'custom':
-		chromosome_string_path, ref_dir = matRef.reference_paths(genome)
 		chromosomes = os.listdir(chromosome_string_path)
 		if ".DS_Store" in chromosomes:
 			chromosomes.remove(".DS_Store")
@@ -172,10 +171,8 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 		os.makedirs(project_path + "logs/")
 
 	if os.path.exists(error_file):
-		# os.system("rm " + error_file)
 		os.remove(error_file)
 	if os.path.exists(log_file):
-		# os.system("rm " + log_file)
 		os.remove(log_file)
 
 
@@ -200,7 +197,6 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 
 	############################## Pre-simulation Checks ##################################################################################################
 	# Ensures that the chromosome strings are saves properly:
-	chromosome_string_path, ref_dir = matRef.reference_paths(genome)
 	if os.path.exists(chromosome_string_path) == False or len(os.listdir(chromosome_string_path)) < len(chromosomes):
 		print("     The chromosome strings were not saved properly or have not been created yet. Please refer to the SigProfilerMatrixGenerator README for installation instructions:\n\thttps://github.com/AlexandrovLab/SigProfilerMatrixGenerator")
 		sys.exit()
