@@ -26,452 +26,452 @@ from SigProfilerMatrixGenerator.scripts import save_context_distribution as cont
 
 
 def context_identifier (mutation):
-	SBS_prefix = set([0, 1,2,3,4])
-	SBS_ref = set([1,3,4,5,6])
-	DBS_prefix = set([0,1,3,5,7])
-	DBS_ref = set([2,4,6])	
-	mutation_prefix = len(mutation.split("[")[0])
-	mutation_ref = len(mutation.split(">")[0])
-	tsb_length = len(mutation.split(":")[0])
-	mutation_length = len(mutation)
-	context = ''
-	nuc = mutation
-	nuc = nuc.replace("[","")
-	nuc = nuc.replace("]","")
+    SBS_prefix = set([0, 1,2,3,4])
+    SBS_ref = set([1,3,4,5,6])
+    DBS_prefix = set([0,1,3,5,7])
+    DBS_ref = set([2,4,6])  
+    mutation_prefix = len(mutation.split("[")[0])
+    mutation_ref = len(mutation.split(">")[0])
+    tsb_length = len(mutation.split(":")[0])
+    mutation_length = len(mutation)
+    context = ''
+    nuc = mutation
+    nuc = nuc.replace("[","")
+    nuc = nuc.replace("]","")
 
-	if mutation_prefix in SBS_prefix and mutation_ref in SBS_ref:
-		# context = "SBS"
-		context = ''
-		nuc = nuc.split(">")[0] + nuc.split(">")[1][1:]
-		if mutation_length == 3:
-			context += "6"
-		elif mutation_length == 5:
-			context += "24"
-		elif mutation_length == 7:
-			context += "96"
-		elif mutation_length == 9:
-			if mutation_ref == 5:
-				context += "384"
-			else:
-				context += "1536"
-		elif mutation_length == 11:
-			context += "6144"	
-		else:
-			raise ValueError(f"{mutation} is not supported by this function.")
-	elif mutation_prefix in DBS_prefix and mutation_ref in DBS_ref:
-		context = "DBS"
-		nuc = nuc.split(">")[0]
-		if mutation_length == 5:
-			context += "78"
-		elif mutation_length == 7:
-			context += "186"
-		else:
-			print(mutation, " is not supported by this function")
-	else:
-		raise ValueError(f"{mutation} is not supported by this function.")
+    if mutation_prefix in SBS_prefix and mutation_ref in SBS_ref:
+        # context = "SBS"
+        context = ''
+        nuc = nuc.split(">")[0] + nuc.split(">")[1][1:]
+        if mutation_length == 3:
+            context += "6"
+        elif mutation_length == 5:
+            context += "24"
+        elif mutation_length == 7:
+            context += "96"
+        elif mutation_length == 9:
+            if mutation_ref == 5:
+                context += "384"
+            else:
+                context += "1536"
+        elif mutation_length == 11:
+            context += "6144"   
+        else:
+            raise ValueError(f"{mutation} is not supported by this function.")
+    elif mutation_prefix in DBS_prefix and mutation_ref in DBS_ref:
+        context = "DBS"
+        nuc = nuc.split(">")[0]
+        if mutation_length == 5:
+            context += "78"
+        elif mutation_length == 7:
+            context += "186"
+        else:
+            print(mutation, " is not supported by this function")
+    else:
+        raise ValueError(f"{mutation} is not supported by this function.")
 
-	return(context, nuc)
+    return(context, nuc)
 
 def probability (chromosome=None, position=None, mutation=None, context=None, genome=None, mutation_count=1, mutation_file=None, exome=False):
 
-	chromosome_string_path, ref_dir = matRef.reference_paths(genome)
-	if not mutation_file:
-		if not genome:
-			raise ValueError("No genome provided.")
-		if not chromosome:
-			raise ValueError("No chromosome provided.")
-		if not position:
-			raise ValueError("No position provided.")
-		if not mutation:
-			raise ValueError("No mutation provided.")
+    chromosome_string_path, ref_dir = matRef.reference_paths(genome)
+    if not mutation_file:
+        if not genome:
+            raise ValueError("No genome provided.")
+        if not chromosome:
+            raise ValueError("No chromosome provided.")
+        if not position:
+            raise ValueError("No position provided.")
+        if not mutation:
+            raise ValueError("No mutation provided.")
 
 
 
-		context, nuc = context_identifier(mutation)
-		if exome:
-			context += "_exome"
-		nucleotide_context_file = ref_dir + "/references/chromosomes/context_distributions/" + "context_counts_" + genome + "_" + context + ".csv"
-		count_mat = pd.read_csv(nucleotide_context_file, sep=',', header=0, index_col=[0])
+        context, nuc = context_identifier(mutation)
+        if exome:
+            context += "_exome"
+        nucleotide_context_file = ref_dir + "/references/chromosomes/context_distributions/" + "context_counts_" + genome + "_" + context + ".csv"
+        count_mat = pd.read_csv(nucleotide_context_file, sep=',', header=0, index_col=[0])
 
-		nucleotide_count = count_mat.loc[nuc, chromosome]
+        nucleotide_count = count_mat.loc[nuc, chromosome]
 
-		prob = mutation_count/nucleotide_count
-		print("The probabilty of seeing", mutation, " on chromosome", chromosome, "at position", str(position), "is equal to:\n\n\t\t",str(prob))
+        prob = mutation_count/nucleotide_count
+        print("The probabilty of seeing", mutation, " on chromosome", chromosome, "at position", str(position), "is equal to:\n\n\t\t",str(prob))
 
 
 
 def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, simulations=1, updating=False, bed_file=None, overlap=False, gender='female', seqInfo=False, chrom_based=False, seed_file=None, spacing=1, noisePoisson=False, noiseUniform=0, cushion=100, region=None, vcf=False, mask=None):
-	'''
-	contexts -> [] must be a list
-	'''
-	print("\n======================================\n        SigProfilerSimulator        \n======================================\n\nChecking for all reference files and relevant matrices...")
-	start_run = time.time()
+    '''
+    contexts -> [] must be a list
+    '''
+    print("\n======================================\n        SigProfilerSimulator        \n======================================\n\nChecking for all reference files and relevant matrices...")
+    start_run = time.time()
 
-	# Ensures proper string for the project's path
-	if project_path[-1] != "/":
-		project_path += "/"
+    # Ensures proper string for the project's path
+    if project_path[-1] != "/":
+        project_path += "/"
 
-	# Sorts the user-provided contexts
-	contexts.sort(reverse=True)
-
-
-	bed = False
-	if bed_file:
-		bed = True
-	exome_file = None
-
-	# Asigns a species based on the genome parameter
-	species = None
-	if genome.upper() == 'GRCH37' or genome.upper() == 'GRCH38' or 'GRCH37' in  genome.upper() or 'GRCH38' in  genome.upper(): 
-		species = "homo_sapiens"
-	elif genome.upper() == 'MM10' or genome.upper() == 'MM9'  or 'MM9' in genome.upper() or 'MM10' in genome.upper() or genome.upper() == "MM39" or "MM39" in genome.upper():
-		species = "mus_musculus"
-	else:
-		species = "custom"
-
-	############################## References ###########################################################################################################
-	chromosomes = ['X', 'Y', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 
-				   '13', '14', '15', '16', '17', '18', '19', '20', '21', '22']
-	
-	tsb_ref = {0:['N','A'], 1:['N','C'], 2:['N','G'], 3:['N','T'],
-			   4:['T','A'], 5:['T','C'], 6:['T','G'], 7:['T','T'],
-			   8:['U','A'], 9:['U','C'], 10:['U','G'], 11:['U','T'],
-			   12:['B','A'], 13:['B','C'], 14:['B','G'], 15:['B','T'],
-			   16:['N','N'], 17:['T','N'], 18:['U','N'], 19:['B','N']}
-
-	tsb_ref_rev = {'N':{'A':0, 'C':1, 'G':2, 'T':3, 'N':16},
-				   'T':{'A':4, 'C':5, 'G':6, 'T':7, 'N':17},
-				   'U':{'A':8, 'C':9, 'G':10, 'T':11, 'N':18},
-				   'B':{'A':12, 'C':13, 'G':14, 'T':15, 'N':19}}
-				   
-	if species == 'mus_musculus':
-		chromosomes = chromosomes[:21]
-
-	chromosome_string_path, ref_dir = matRef.reference_paths(genome)
-	if species == 'custom':
-		chromosomes = os.listdir(chromosome_string_path)
-		if ".DS_Store" in chromosomes:
-			chromosomes.remove(".DS_Store")
-
-		chromosomes = [x.split(".")[0] for x in chromosomes if len(x.split(".")[0]) < 8]
-		if genome == 'yeast':
-			chromosomes = sorted(chromosomes, key = lambda x: (['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI'].index(x)))
-	if gender == 'female' or gender.upper() == 'FEMALE':
-		if "Y" in chromosomes:
-			chromosomes.remove('Y')
-
-	if region:
-		chromosomes = [region]
-	############################## Log and Error Files ##################################################################################################
-	time_stamp = datetime.date.today()
-	error_file = project_path + 'logs/SigProfilerSimulator_' + project + "_" + genome + "_" + str(time_stamp) + ".err"
-	log_file = project_path + 'logs/SigProfilerSimulator_' + project + "_" + genome + "_" + str(time_stamp) + ".out"
-
-	if not os.path.exists(project_path + "logs/"):
-		os.makedirs(project_path + "logs/")
-
-	if os.path.exists(error_file):
-		os.remove(error_file)
-	if os.path.exists(log_file):
-		os.remove(log_file)
+    # Sorts the user-provided contexts
+    contexts.sort(reverse=True)
 
 
-	sys.stderr = open(error_file, 'w')
-	log_out = open(log_file, 'w')
-	log_out.write("THIS FILE CONTAINS THE METADATA ABOUT SYSTEM AND RUNTIME\n\n\n")
-	log_out.write("-------System Info-------\n")
-	log_out.write("Operating System Name: "+ platform.uname()[0]+"\n"+"Nodename: "+ platform.uname()[1]+"\n"+"Release: "+ platform.uname()[2]+"\n"+"Version: "+ platform.uname()[3]+"\n")
-	log_out.write("\n-------Python and Package Versions------- \n")
-	log_out.write("Python Version: "+str(platform.sys.version_info.major)+"."+str(platform.sys.version_info.minor)+"."+str(platform.sys.version_info.micro)+"\n")
-	log_out.write(f"SigProfilerSimulator Version: {_sps_version}\n")
-	log_out.write("SigProfilerMatrixGenerator Version: "+sig.__version__+"\n")
-	log_out.write("numpy version: "+np.__version__+"\n")
-	
-	log_out.write("\n-------Vital Parameters Used for the execution -------\n")
-	log_out.write("Project: {}\nGenome: {}\nInput File Path: {}\ncontexts: {}\nexome: {}\nsimulations: {}\nupdating: {}\nbed_file: {}\noverlap: {}\ngender: {}\nseqInfo: {}\nchrom_based: {}\nseed_file: {}\n".format(project, genome, project_path, contexts, str(exome), str(simulations),  str(updating), str(bed_file), str(overlap), gender, str(seqInfo), str(chrom_based), str(seed_file)))
-	log_out.write("\n-------Date and Time Data------- \n")
-	tic = datetime.datetime.now()
-	log_out.write("Date and Clock time when the execution started: "+str(tic)+"\n\n\n")
-	
+    bed = False
+    if bed_file:
+        bed = True
+    exome_file = None
+
+    # Asigns a species based on the genome parameter
+    species = None
+    if genome.upper() == 'GRCH37' or genome.upper() == 'GRCH38' or 'GRCH37' in  genome.upper() or 'GRCH38' in  genome.upper(): 
+        species = "homo_sapiens"
+    elif genome.upper() == 'MM10' or genome.upper() == 'MM9'  or 'MM9' in genome.upper() or 'MM10' in genome.upper() or genome.upper() == "MM39" or "MM39" in genome.upper():
+        species = "mus_musculus"
+    else:
+        species = "custom"
+
+    ############################## References ###########################################################################################################
+    chromosomes = ['X', 'Y', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', 
+                   '13', '14', '15', '16', '17', '18', '19', '20', '21', '22']
+    
+    tsb_ref = {0:['N','A'], 1:['N','C'], 2:['N','G'], 3:['N','T'],
+               4:['T','A'], 5:['T','C'], 6:['T','G'], 7:['T','T'],
+               8:['U','A'], 9:['U','C'], 10:['U','G'], 11:['U','T'],
+               12:['B','A'], 13:['B','C'], 14:['B','G'], 15:['B','T'],
+               16:['N','N'], 17:['T','N'], 18:['U','N'], 19:['B','N']}
+
+    tsb_ref_rev = {'N':{'A':0, 'C':1, 'G':2, 'T':3, 'N':16},
+                   'T':{'A':4, 'C':5, 'G':6, 'T':7, 'N':17},
+                   'U':{'A':8, 'C':9, 'G':10, 'T':11, 'N':18},
+                   'B':{'A':12, 'C':13, 'G':14, 'T':15, 'N':19}}
+                   
+    if species == 'mus_musculus':
+        chromosomes = chromosomes[:21]
+
+    chromosome_string_path, ref_dir = matRef.reference_paths(genome)
+    if species == 'custom':
+        chromosomes = os.listdir(chromosome_string_path)
+        if ".DS_Store" in chromosomes:
+            chromosomes.remove(".DS_Store")
+
+        chromosomes = [x.split(".")[0] for x in chromosomes if len(x.split(".")[0]) < 8]
+        if genome == 'yeast':
+            chromosomes = sorted(chromosomes, key = lambda x: (['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII','XIII','XIV','XV','XVI'].index(x)))
+    if gender == 'female' or gender.upper() == 'FEMALE':
+        if "Y" in chromosomes:
+            chromosomes.remove('Y')
+
+    if region:
+        chromosomes = [region]
+    ############################## Log and Error Files ##################################################################################################
+    time_stamp = datetime.date.today()
+    error_file = project_path + 'logs/SigProfilerSimulator_' + project + "_" + genome + "_" + str(time_stamp) + ".err"
+    log_file = project_path + 'logs/SigProfilerSimulator_' + project + "_" + genome + "_" + str(time_stamp) + ".out"
+
+    if not os.path.exists(project_path + "logs/"):
+        os.makedirs(project_path + "logs/")
+
+    if os.path.exists(error_file):
+        os.remove(error_file)
+    if os.path.exists(log_file):
+        os.remove(log_file)
 
 
-	############################## Pre-simulation Checks ##################################################################################################
-	# Ensures that the chromosome strings are saves properly:
-	if os.path.exists(chromosome_string_path) == False or len(os.listdir(chromosome_string_path)) < len(chromosomes):
-		print("     The chromosome strings were not saved properly or have not been created yet. Please refer to the SigProfilerMatrixGenerator README for installation instructions:\n\thttps://github.com/AlexandrovLab/SigProfilerMatrixGenerator")
-		sys.exit()
-	# Ensures that the chromosome proportions are saved: 
-	if os.path.exists(chromosome_string_path + genome + "_proportions.txt") == False:
-		print("     Chromosome proportion file does not exist. Creating now...", end='')
-		chromosomeProbs = simScript.chrom_proportions(chromosome_string_path, genome, chromosomes)
-		print("Completed!")
-
-	if bed_file:
-		print("     Creating a chromosome proportion file for the given BED file ranges...", end='')
-		chromosomeProbs = simScript.chrom_proportions_BED(bed_file, chromosome_string_path, genome, chromosomes)
-		print("Completed!")
-
-	# Ensures that the mutational matrices exist:
-	catalogue_files = {}	
-	for context in contexts:
-		matrix_path = project_path + "output/"
-		if context == 'DINUC' or 'DBS' in context:
-			context_folder = 'DBS'
-			matrix_path = matrix_path + context_folder + "/"
-			if context == 'DBS' or context == 'DINUC' or context == '78':
-				file_name = ".DBS78"
-			else:
-				file_name = '.' + context 
-		elif context == 'INDEL' or 'ID' in context or '415' in context:
-			context_folder = 'ID'
-			matrix_path = matrix_path + context_folder + "/"
-			if context == 'INDEL' or context == 'ID' or context == '83':
-				file_name = '.ID83'
-			else:
-				file_name = "." + context
-		else:
-			context_folder = 'SBS'
-			matrix_path = matrix_path + context_folder + "/"
-			file_name = '.SBS' + context
-
-		if exome:
-			catalogue_file = matrix_path + project + file_name + '.exome'
-		else:
-			if bed_file:
-				catalogue_file = matrix_path + project + file_name + '.region'
-			else:
-				catalogue_file = matrix_path + project + file_name + '.all'
-
-	
-		catalogue_files[context] = catalogue_file
-
-		vcf_files_1 = project_path
-		vcf_files_2 = project_path + "input/"
-		parent_dir = os.getcwd()
-		matrix_dir = "scripts/"
-		if chrom_based:
-			if os.path.exists (catalogue_file + '.chr1') == False:
-				if os.path.exists (vcf_files_2) == False and len(os.listdir(vcf_files_1)) == 0:
-					print ("     Please place your vcf files for each sample into the 'references/vcf_files/[project]/' directory. Once you have done that, rerun this script.")
-				else:
-					print("     Matrices per chromosomes do not exist. Creating the matrix files now.")
-					matGen.SigProfilerMatrixGeneratorFunc(project, genome, project_path ,plot=False, exome=exome, bed_file=bed_file, chrom_based=True, cushion=cushion)
-					# print("The matrix file has been created. Continuing with simulations...")
-			if os.path.exists (catalogue_file) == False:
-				if os.path.exists (vcf_files_2) == False and len(os.listdir(vcf_files_1)) == 0:
-					print ("     Please place your vcf files for each sample into the 'references/vcf_files/[project]/' directory. Once you have done that, rerun this script.")
-				else:
-					print("     " + catalogue_file + " does not exist. Creating the matrix file now.")
-					matGen.SigProfilerMatrixGeneratorFunc(project, genome, project_path ,plot=False, exome=exome, bed_file=bed_file, cushion=cushion)
-					# print("The matrix file has been created. Continuing with simulations...")
+    sys.stderr = open(error_file, 'w')
+    log_out = open(log_file, 'w')
+    log_out.write("THIS FILE CONTAINS THE METADATA ABOUT SYSTEM AND RUNTIME\n\n\n")
+    log_out.write("-------System Info-------\n")
+    log_out.write("Operating System Name: "+ platform.uname()[0]+"\n"+"Nodename: "+ platform.uname()[1]+"\n"+"Release: "+ platform.uname()[2]+"\n"+"Version: "+ platform.uname()[3]+"\n")
+    log_out.write("\n-------Python and Package Versions------- \n")
+    log_out.write("Python Version: "+str(platform.sys.version_info.major)+"."+str(platform.sys.version_info.minor)+"."+str(platform.sys.version_info.micro)+"\n")
+    log_out.write(f"SigProfilerSimulator Version: {_sps_version}\n")
+    log_out.write("SigProfilerMatrixGenerator Version: "+sig.__version__+"\n")
+    log_out.write("numpy version: "+np.__version__+"\n")
+    
+    log_out.write("\n-------Vital Parameters Used for the execution -------\n")
+    log_out.write("Project: {}\nGenome: {}\nInput File Path: {}\ncontexts: {}\nexome: {}\nsimulations: {}\nupdating: {}\nbed_file: {}\noverlap: {}\ngender: {}\nseqInfo: {}\nchrom_based: {}\nseed_file: {}\n".format(project, genome, project_path, contexts, str(exome), str(simulations),  str(updating), str(bed_file), str(overlap), gender, str(seqInfo), str(chrom_based), str(seed_file)))
+    log_out.write("\n-------Date and Time Data------- \n")
+    tic = datetime.datetime.now()
+    log_out.write("Date and Clock time when the execution started: "+str(tic)+"\n\n\n")
+    
 
 
-		else:	
-			if os.path.exists (catalogue_file) == False:# or bed_file:
-				if os.path.exists (vcf_files_2) == False and len(os.listdir(vcf_files_1)) == 0:
-					print ("     Please place your vcf files for each sample into the 'references/vcf_files/[project]/' directory. Once you have done that, rerun this script.")
-				else:
-					print("     " + catalogue_file + " does not exist. Creating the matrix file now.")
-					matGen.SigProfilerMatrixGeneratorFunc(project, genome, project_path ,plot=False, exome=exome, bed_file=bed_file, cushion=cushion)
-					# print("The matrix file has been created. Continuing with simulations...")
+    ############################## Pre-simulation Checks ##################################################################################################
+    # Ensures that the chromosome strings are saves properly:
+    if os.path.exists(chromosome_string_path) == False or len(os.listdir(chromosome_string_path)) < len(chromosomes):
+        print("     The chromosome strings were not saved properly or have not been created yet. Please refer to the SigProfilerMatrixGenerator README for installation instructions:\n\thttps://github.com/AlexandrovLab/SigProfilerMatrixGenerator")
+        sys.exit()
+    # Ensures that the chromosome proportions are saved: 
+    if os.path.exists(chromosome_string_path + genome + "_proportions.txt") == False:
+        print("     Chromosome proportion file does not exist. Creating now...", end='')
+        chromosomeProbs = simScript.chrom_proportions(chromosome_string_path, genome, chromosomes)
+        print("Completed!")
 
-	if exome:
-		exome_file = ref_dir + "/references/chromosomes/exome/" + genome + "/" + genome + "_exome.interval_list"
+    if bed_file:
+        print("     Creating a chromosome proportion file for the given BED file ranges...", end='')
+        chromosomeProbs = simScript.chrom_proportions_BED(bed_file, chromosome_string_path, genome, chromosomes)
+        print("Completed!")
 
-	# Esnures that the nucleotide context files are saved properly
-	nucleotide_context_files = {}
-	for context in contexts:
-		nucleotide_context_file = chromosome_string_path.split("/")
-		ref_path = nucleotide_context_file[:-3]
-		ref_path = '/'.join([x for x in ref_path])
-		nucleotide_context_file = ref_path + '/context_distributions/'
-		
-		# genome_original = genome
-		# if 'havana' in genome:
-		# 	genome = genome.split("_")[0]
+    # Ensures that the mutational matrices exist:
+    catalogue_files = {}    
+    for context in contexts:
+        matrix_path = project_path + "output/"
+        if context == 'DINUC' or 'DBS' in context:
+            context_folder = 'DBS'
+            matrix_path = matrix_path + context_folder + "/"
+            if context == 'DBS' or context == 'DINUC' or context == '78':
+                file_name = ".DBS78"
+            else:
+                file_name = '.' + context 
+        elif context == 'INDEL' or 'ID' in context or '415' in context:
+            context_folder = 'ID'
+            matrix_path = matrix_path + context_folder + "/"
+            if context == 'INDEL' or context == 'ID' or context == '83':
+                file_name = '.ID83'
+            else:
+                file_name = "." + context
+        else:
+            context_folder = 'SBS'
+            matrix_path = matrix_path + context_folder + "/"
+            file_name = '.SBS' + context
 
-		if bed_file:
-			if region:
-				nucleotide_context_file += "context_distribution_" + genome + "_" + context + "_" + gender + ".csv"
-			else:
-				nucleotide_context_file += "context_distribution_" + genome + "_" + context + "_" + gender + "_BED.csv"
-		else:
-			if exome:
-				nucleotide_context_file += "context_distribution_" + genome + "_" + context + "_" + gender + "_exome.csv"
-			else:
-				nucleotide_context_file += "context_distribution_" + genome + "_" + context + "_" + gender + ".csv"
+        if exome:
+            catalogue_file = matrix_path + project + file_name + '.exome'
+        else:
+            if bed_file:
+                catalogue_file = matrix_path + project + file_name + '.region'
+            else:
+                catalogue_file = matrix_path + project + file_name + '.all'
 
-		if context == "288":
-			nucleotide_context_file = nucleotide_context_file.split("_")
-			nucleotide_context_file[5] = "384"
-			nucleotide_context_file = "_".join([x for x in nucleotide_context_file])
-		elif context == '4608':
-			nucleotide_context_file = nucleotide_context_file.split("_")
-			nucleotide_context_file[4] = "6144"
-			nucleotide_context_file = "_".join([x for x in nucleotide_context_file])			
-		nucleotide_context_files[context] = nucleotide_context_file
-		if os.path.exists(nucleotide_context_file) == True and bed and not region:
-			os.remove(nucleotide_context_file)
+    
+        catalogue_files[context] = catalogue_file
 
-		if os.path.exists(nucleotide_context_file) == False and (context != 'INDEL' and context != 'ID' and context != 'ID415'):
-			print("     The context distribution file does not exist. This file needs to be created before simulating. This may take several hours...")
-			if bed:
-				output_file = ref_path + '/context_distributions/context_distribution_' + genome + "_" + context + "_" + gender + '_BED.csv'
-				context_dist.context_distribution_BED(context, output_file, chromosome_string_path, chromosomes, bed, bed_file, exome, exome_file, genome, ref_path, tsb_ref, gender)
-			elif exome:
-				output_file = ref_path + '/context_distributions/context_distribution_' + genome + "_" + context + "_" + gender + '_exome.csv'
-				context_dist.context_distribution_BED(context, output_file, chromosome_string_path, chromosomes, bed, bed_file, exome, exome_file, genome, ref_dir, tsb_ref, gender)
-			else:
-				output_file = ref_path + '/context_distributions/context_distribution_' + genome + "_" + context + "_" + gender + '.csv'
-				context_dist.context_distribution(context, output_file, chromosome_string_path, chromosomes, tsb_ref, genome)
-			print("     The context distribution file has been created!")
-			if gender == 'female' or gender.upper() == 'FEMALE':
-				if "Y" in chromosomes:
-					chromosomes.remove('Y')
-
-
-	############################## Set-up output files ##################################################################################################
-	context_string = "_".join(contexts)
-	if bed_file:
-		output_path = project_path + "output/simulations/" + project + '_simulations_' + genome + '_' + context_string + '_BED/'
-	elif exome:
-		output_path = project_path + "output/simulations/" + project + '_simulations_' + genome + '_' + context_string + '_exome/'
-	else:
-		output_path = project_path + "output/simulations/" + project + '_simulations_' + genome + '_' + context_string + '/'
+        vcf_files_1 = project_path
+        vcf_files_2 = project_path + "input/"
+        parent_dir = os.getcwd()
+        matrix_dir = "scripts/"
+        if chrom_based:
+            if os.path.exists (catalogue_file + '.chr1') == False:
+                if os.path.exists (vcf_files_2) == False and len(os.listdir(vcf_files_1)) == 0:
+                    print ("     Please place your vcf files for each sample into the 'references/vcf_files/[project]/' directory. Once you have done that, rerun this script.")
+                else:
+                    print("     Matrices per chromosomes do not exist. Creating the matrix files now.")
+                    matGen.SigProfilerMatrixGeneratorFunc(project, genome, project_path ,plot=False, exome=exome, bed_file=bed_file, chrom_based=True, cushion=cushion)
+                    # print("The matrix file has been created. Continuing with simulations...")
+            if os.path.exists (catalogue_file) == False:
+                if os.path.exists (vcf_files_2) == False and len(os.listdir(vcf_files_1)) == 0:
+                    print ("     Please place your vcf files for each sample into the 'references/vcf_files/[project]/' directory. Once you have done that, rerun this script.")
+                else:
+                    print("     " + catalogue_file + " does not exist. Creating the matrix file now.")
+                    matGen.SigProfilerMatrixGeneratorFunc(project, genome, project_path ,plot=False, exome=exome, bed_file=bed_file, cushion=cushion)
+                    # print("The matrix file has been created. Continuing with simulations...")
 
 
-	if os.path.exists(output_path):
-		shutil.rmtree(output_path)
-		os.makedirs(output_path)
-	else:
-		os.makedirs(output_path)
+        else:   
+            if os.path.exists (catalogue_file) == False:# or bed_file:
+                if os.path.exists (vcf_files_2) == False and len(os.listdir(vcf_files_1)) == 0:
+                    print ("     Please place your vcf files for each sample into the 'references/vcf_files/[project]/' directory. Once you have done that, rerun this script.")
+                else:
+                    print("     " + catalogue_file + " does not exist. Creating the matrix file now.")
+                    matGen.SigProfilerMatrixGeneratorFunc(project, genome, project_path ,plot=False, exome=exome, bed_file=bed_file, cushion=cushion)
+                    # print("The matrix file has been created. Continuing with simulations...")
 
-	if "M" in chromosomes:
-		chromosomes.remove("M")
-	if "MT" in chromosomes:
-		chromosomes.remove("MT")
-	############################## Begin the simulation process ##################################################################################################
-	print()
-	if chrom_based:
-		sample_names, mut_prep, mut_dict = simScript.mutation_preparation_chromosomes(catalogue_files, matrix_path, chromosomes, project, log_file)
-		reference_sample = sample_names[0]
-	elif region:
-		sample_names, mut_prep, mut_dict = simScript.mutation_preparation_region(catalogue_files, matrix_path, project, log_file, region)
-		reference_sample = sample_names[0]		
-	else:
-		sample_names, mut_prep = simScript.mutation_preparation(catalogue_files, log_file)
-		reference_sample = sample_names[0]
-		mut_dict = simScript.mut_tracker(sample_names,  mut_prep, reference_sample, nucleotide_context_files, chromosome_string_path, genome, chromosomes, bed_file, log_file)
-	
+    if exome:
+        exome_file = ref_dir + "/references/chromosomes/exome/" + genome + "/" + genome + "_exome.interval_list"
 
-	if vcf:
-		if "" in sample_names:
-			sample_names.remove("")
-		for sample in sample_names:
-			if not os.path.exists(output_path + sample + "/"):
-				os.makedirs(output_path + sample + "/")
+    # Esnures that the nucleotide context files are saved properly
+    nucleotide_context_files = {}
+    for context in contexts:
+        nucleotide_context_file = chromosome_string_path.split("/")
+        ref_path = nucleotide_context_file[:-3]
+        ref_path = '/'.join([x for x in ref_path])
+        nucleotide_context_file = ref_path + '/context_distributions/'
+        
+        # genome_original = genome
+        # if 'havana' in genome:
+        #   genome = genome.split("_")[0]
+
+        if bed_file:
+            if region:
+                nucleotide_context_file += "context_distribution_" + genome + "_" + context + "_" + gender + ".csv"
+            else:
+                nucleotide_context_file += "context_distribution_" + genome + "_" + context + "_" + gender + "_BED.csv"
+        else:
+            if exome:
+                nucleotide_context_file += "context_distribution_" + genome + "_" + context + "_" + gender + "_exome.csv"
+            else:
+                nucleotide_context_file += "context_distribution_" + genome + "_" + context + "_" + gender + ".csv"
+
+        if context == "288":
+            nucleotide_context_file = nucleotide_context_file.split("_")
+            nucleotide_context_file[5] = "384"
+            nucleotide_context_file = "_".join([x for x in nucleotide_context_file])
+        elif context == '4608':
+            nucleotide_context_file = nucleotide_context_file.split("_")
+            nucleotide_context_file[4] = "6144"
+            nucleotide_context_file = "_".join([x for x in nucleotide_context_file])            
+        nucleotide_context_files[context] = nucleotide_context_file
+        if os.path.exists(nucleotide_context_file) == True and bed and not region:
+            os.remove(nucleotide_context_file)
+
+        if os.path.exists(nucleotide_context_file) == False and (context != 'INDEL' and context != 'ID' and context != 'ID415'):
+            print("     The context distribution file does not exist. This file needs to be created before simulating. This may take several hours...")
+            if bed:
+                output_file = ref_path + '/context_distributions/context_distribution_' + genome + "_" + context + "_" + gender + '_BED.csv'
+                context_dist.context_distribution_BED(context, output_file, chromosome_string_path, chromosomes, bed, bed_file, exome, exome_file, genome, ref_path, tsb_ref, gender)
+            elif exome:
+                output_file = ref_path + '/context_distributions/context_distribution_' + genome + "_" + context + "_" + gender + '_exome.csv'
+                context_dist.context_distribution_BED(context, output_file, chromosome_string_path, chromosomes, bed, bed_file, exome, exome_file, genome, ref_dir, tsb_ref, gender)
+            else:
+                output_file = ref_path + '/context_distributions/context_distribution_' + genome + "_" + context + "_" + gender + '.csv'
+                context_dist.context_distribution(context, output_file, chromosome_string_path, chromosomes, tsb_ref, genome)
+            print("     The context distribution file has been created!")
+            if gender == 'female' or gender.upper() == 'FEMALE':
+                if "Y" in chromosomes:
+                    chromosomes.remove('Y')
 
 
-	# Set-up parallelization:
-	processors = mp.cpu_count()
-	max_seed = processors
-	if processors > len(chromosomes):
-		max_seed = len(chromosomes)
-	chrom_break = len(chromosomes)/max_seed
-	chromosomes_parallel = [[] for i in range(max_seed)]
-
-	chrom_bin = 0
-	for chrom in chromosomes:
-		if chrom_bin == max_seed:
-			chrom_bin = 0
-		chromosomes_parallel[chrom_bin].append(chrom)
-		chrom_bin += 1
-
-	iterations_parallel = [[] for i in range(max_seed)]
-	iter_bin = 0
-	for i in range(1, simulations + 1, 1):
-		if iter_bin == max_seed:
-			iter_bin = 0
-		iterations_parallel[iter_bin].append(i)
-		iter_bin += 1
+    ############################## Set-up output files ##################################################################################################
+    context_string = "_".join(contexts)
+    if bed_file:
+        output_path = project_path + "output/simulations/" + project + '_simulations_' + genome + '_' + context_string + '_BED/'
+    elif exome:
+        output_path = project_path + "output/simulations/" + project + '_simulations_' + genome + '_' + context_string + '_exome/'
+    else:
+        output_path = project_path + "output/simulations/" + project + '_simulations_' + genome + '_' + context_string + '/'
 
 
-	# Generate unique seeds for each process
-	log_out.write("\n-------Seeds for random number generation per process------- \n")
-	seeds = []
-	randomize_seed = seed_file is None
-	if randomize_seed:
-		sps_dir, tail = os.path.split(os.path.dirname(os.path.abspath(__file__)))
-		seed_file = sps_dir + "/SigProfilerSimulator/seeds.txt"
-	with open(seed_file) as f:
-		for i in range (0, max_seed, 1):
-			new_seed = int(f.readline().strip())
-			if randomize_seed:
-				new_seed = int(new_seed / time.time())
-			seeds.append(new_seed)
-			log_out.write("Process " + str(i) + ": " + str(new_seed) + "\n")
+    if os.path.exists(output_path):
+        shutil.rmtree(output_path)
+        os.makedirs(output_path)
+    else:
+        os.makedirs(output_path)
 
-	log_out.write("\n\n\n-------Runtime Checkpoints------- \n")
-	log_out.close()
+    if "M" in chromosomes:
+        chromosomes.remove("M")
+    if "MT" in chromosomes:
+        chromosomes.remove("MT")
+    ############################## Begin the simulation process ##################################################################################################
+    print()
+    if chrom_based:
+        sample_names, mut_prep, mut_dict = simScript.mutation_preparation_chromosomes(catalogue_files, matrix_path, chromosomes, project, log_file)
+        reference_sample = sample_names[0]
+    elif region:
+        sample_names, mut_prep, mut_dict = simScript.mutation_preparation_region(catalogue_files, matrix_path, project, log_file, region)
+        reference_sample = sample_names[0]      
+    else:
+        sample_names, mut_prep = simScript.mutation_preparation(catalogue_files, log_file)
+        reference_sample = sample_names[0]
+        mut_dict = simScript.mut_tracker(sample_names,  mut_prep, reference_sample, nucleotide_context_files, chromosome_string_path, genome, chromosomes, bed_file, log_file)
+    
 
-	if exome:
-		bed = True
-		bed_file = ref_dir + "/references/chromosomes/exome/" + genome + "/" + genome + "_exome.interval_list"
+    if vcf:
+        if "" in sample_names:
+            sample_names.remove("")
+        for sample in sample_names:
+            if not os.path.exists(output_path + sample + "/"):
+                os.makedirs(output_path + sample + "/")
 
-	if seqInfo:
-		seqOut_path = project_path + "output/vcf_files/simulations/"
-		if not os.path.exists(seqOut_path):
-			os.makedirs(seqOut_path)
 
-		for context in contexts:
-			if not os.path.exists(seqOut_path + context + "/"):
-				os.makedirs(seqOut_path + context + "/")
-			else:
-				print(seqOut_path+ context + "/")
-				shutil.rmtree(seqOut_path+ context + "/")
-				os.makedirs(seqOut_path+ context + "/")
+    # Set-up parallelization:
+    processors = mp.cpu_count()
+    max_seed = processors
+    if processors > len(chromosomes):
+        max_seed = len(chromosomes)
+    chrom_break = len(chromosomes)/max_seed
+    chromosomes_parallel = [[] for i in range(max_seed)]
 
-	pool = mp.get_context("fork").Pool(max_seed)
-	results = []
-	for i in range (0, len(chromosomes_parallel), 1):
-		mut_dict_parallel = {k1:{k2:{k3:{k4:v4 for k4, v4 in v3.items() if k4 in chromosomes_parallel[i]} for k3, v3 in v2.items()} for k2, v2 in v1.items()} for k1, v1 in mut_dict.items()}
-		r = pool.apply_async(simScript.simulator, args=(sample_names, mut_dict_parallel, chromosome_string_path, tsb_ref, tsb_ref_rev, simulations, seeds[i], cushion, output_path, updating, chromosomes_parallel[i], project, genome, bed, bed_file, contexts, overlap, project_path, seqInfo, log_file, spacing, noisePoisson, noiseUniform, vcf, mask))
-		results.append(r)
-	pool.close()
-	pool.join()
-	# simScript.simulator(sample_names, mut_dict, chromosome_string_path, tsb_ref, tsb_ref_rev, simulations, seeds[0], output_path, updating, chromosomes, project, genome, bed, bed_file, contexts, overlap, project_path, seqInfo, log_file, spacing, noisePoisson, noiseAWGN)
-	for r in results:
-		r.wait()
-		if not r.successful():
-			# Raises an error when not successful
-			r.get()
+    chrom_bin = 0
+    for chrom in chromosomes:
+        if chrom_bin == max_seed:
+            chrom_bin = 0
+        chromosomes_parallel[chrom_bin].append(chrom)
+        chrom_bin += 1
 
-	combine_pool = mp.get_context("fork").Pool(max_seed)
+    iterations_parallel = [[] for i in range(max_seed)]
+    iter_bin = 0
+    for i in range(1, simulations + 1, 1):
+        if iter_bin == max_seed:
+            iter_bin = 0
+        iterations_parallel[iter_bin].append(i)
+        iter_bin += 1
 
-	#if region:
-	bed=False
 
-	combine_results = []
-	for i in range (0, len(iterations_parallel), 1):
-		r = combine_pool.apply_async(simScript.combine_simulation_files, args=(iterations_parallel[i], output_path, chromosomes, sample_names, bed, exome, vcf))
-		combine_results.append(r)
-	combine_pool.close()
-	combine_pool.join()
+    # Generate unique seeds for each process
+    log_out.write("\n-------Seeds for random number generation per process------- \n")
+    seeds = []
+    randomize_seed = seed_file is None
+    if randomize_seed:
+        sps_dir, tail = os.path.split(os.path.dirname(os.path.abspath(__file__)))
+        seed_file = sps_dir + "/SigProfilerSimulator/seeds.txt"
+    with open(seed_file) as f:
+        for i in range (0, max_seed, 1):
+            new_seed = int(f.readline().strip())
+            if randomize_seed:
+                new_seed = int(new_seed / time.time())
+            seeds.append(new_seed)
+            log_out.write("Process " + str(i) + ": " + str(new_seed) + "\n")
 
-	for r in combine_results:
-		r.wait()
-		if not r.successful():
-			r.get()
+    log_out.write("\n\n\n-------Runtime Checkpoints------- \n")
+    log_out.close()
 
-	end_run = time.time()
-	run_time = end_run - start_run
-	log_out = open(log_file, 'a')
-	print("Simulation completed\nJob took " , run_time, " seconds", file=log_out)
-	print("Simulation completed\nJob took " , run_time, " seconds")
-	log_out.close()
-	sys.stderr.close()
+    if exome:
+        bed = True
+        bed_file = ref_dir + "/references/chromosomes/exome/" + genome + "/" + genome + "_exome.interval_list"
 
-	
+    if seqInfo:
+        seqOut_path = project_path + "output/vcf_files/simulations/"
+        if not os.path.exists(seqOut_path):
+            os.makedirs(seqOut_path)
+
+        for context in contexts:
+            if not os.path.exists(seqOut_path + context + "/"):
+                os.makedirs(seqOut_path + context + "/")
+            else:
+                print(seqOut_path+ context + "/")
+                shutil.rmtree(seqOut_path+ context + "/")
+                os.makedirs(seqOut_path+ context + "/")
+
+    pool = mp.get_context("fork").Pool(max_seed)
+    results = []
+    for i in range (0, len(chromosomes_parallel), 1):
+        mut_dict_parallel = {k1:{k2:{k3:{k4:v4 for k4, v4 in v3.items() if k4 in chromosomes_parallel[i]} for k3, v3 in v2.items()} for k2, v2 in v1.items()} for k1, v1 in mut_dict.items()}
+        r = pool.apply_async(simScript.simulator, args=(sample_names, mut_dict_parallel, chromosome_string_path, tsb_ref, tsb_ref_rev, simulations, seeds[i], cushion, output_path, updating, chromosomes_parallel[i], project, genome, bed, bed_file, contexts, overlap, project_path, seqInfo, log_file, spacing, noisePoisson, noiseUniform, vcf, mask))
+        results.append(r)
+    pool.close()
+    pool.join()
+    # simScript.simulator(sample_names, mut_dict, chromosome_string_path, tsb_ref, tsb_ref_rev, simulations, seeds[0], output_path, updating, chromosomes, project, genome, bed, bed_file, contexts, overlap, project_path, seqInfo, log_file, spacing, noisePoisson, noiseAWGN)
+    for r in results:
+        r.wait()
+        if not r.successful():
+            # Raises an error when not successful
+            r.get()
+
+    combine_pool = mp.get_context("fork").Pool(max_seed)
+
+    #if region:
+    bed=False
+
+    combine_results = []
+    for i in range (0, len(iterations_parallel), 1):
+        r = combine_pool.apply_async(simScript.combine_simulation_files, args=(iterations_parallel[i], output_path, chromosomes, sample_names, bed, exome, vcf))
+        combine_results.append(r)
+    combine_pool.close()
+    combine_pool.join()
+
+    for r in combine_results:
+        r.wait()
+        if not r.successful():
+            r.get()
+
+    end_run = time.time()
+    run_time = end_run - start_run
+    log_out = open(log_file, 'a')
+    print("Simulation completed\nJob took " , run_time, " seconds", file=log_out)
+    print("Simulation completed\nJob took " , run_time, " seconds")
+    log_out.close()
+    sys.stderr.close()
+
+    
 
 
 
