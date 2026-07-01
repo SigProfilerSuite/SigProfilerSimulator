@@ -460,6 +460,208 @@ class TestSimulatorINDEL:
         assert os.path.exists(sim_indel)
 
 
+# ─── Multiple simulations (simulations=2) ─────────────────────────────────────
+# Covers iter_bin reset (line 394) when simulations > max_seed with region="1"
+
+@pytest.fixture(scope="module")
+def sim_multi():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=2, region="1", seed_file=SEED_FILE)
+        context_str = "_".join(CONTEXTS)
+        sim_dir = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/"
+        )
+        yield sim_dir
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorMultipleSimulations:
+    def test_first_maf_created(self, sim_multi):
+        assert os.path.exists(sim_multi + "1.maf")
+
+    def test_second_maf_created(self, sim_multi):
+        assert os.path.exists(sim_multi + "2.maf")
+
+    def test_each_maf_has_correct_mutation_count(self, sim_multi):
+        for fname in ("1.maf", "2.maf"):
+            with open(sim_multi + fname) as f:
+                n = sum(1 for _ in f) - 1
+            assert n == N_INPUT_MUTATIONS
+
+
+# ─── Male gender ──────────────────────────────────────────────────────────────
+# gender='male' keeps Y chromosome; with many chromosomes may cover chrom_bin
+# reset (line 386) depending on available CPUs
+
+@pytest.fixture(scope="module")
+def sim_male():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, region="1", gender="male",
+                             seed_file=SEED_FILE)
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorMaleGender:
+    def test_male_maf_created(self, sim_male):
+        assert os.path.exists(sim_male)
+
+    def test_male_maf_has_correct_mutation_count(self, sim_male):
+        with open(sim_male) as f:
+            n = sum(1 for _ in f) - 1
+        assert n == N_INPUT_MUTATIONS
+
+
+# ─── Noise: Poisson and Uniform ───────────────────────────────────────────────
+
+@pytest.fixture(scope="module")
+def sim_noise_poisson():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, region="1",
+                             noisePoisson=True, seed_file=SEED_FILE)
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@pytest.fixture(scope="module")
+def sim_noise_uniform():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, region="1",
+                             noiseUniform=20, seed_file=SEED_FILE)
+        context_str = "_".join(CONTEXTS)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_{context_str}/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorNoise:
+    def test_poisson_noise_maf_created(self, sim_noise_poisson):
+        assert os.path.exists(sim_noise_poisson)
+
+    def test_poisson_noise_maf_has_mutations(self, sim_noise_poisson):
+        with open(sim_noise_poisson) as f:
+            n = sum(1 for _ in f) - 1
+        assert n > 0
+
+    def test_uniform_noise_maf_created(self, sim_noise_uniform):
+        assert os.path.exists(sim_noise_uniform)
+
+    def test_uniform_noise_maf_has_mutations(self, sim_noise_uniform):
+        with open(sim_noise_uniform) as f:
+            n = sum(1 for _ in f) - 1
+        assert n > 0
+
+
+# ─── seqInfo second run (lines 430-432) ───────────────────────────────────────
+# Second run with seqInfo=True in same dir: context subdir already exists,
+# triggers rmtree + makedirs branch
+
+@pytest.fixture(scope="module")
+def sim_seqinfo_twice():
+    project_path = _setup_project(VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, seqInfo=True, region="1",
+                             seed_file=SEED_FILE)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, CONTEXTS,
+                             simulations=SIMULATIONS, seqInfo=True, region="1",
+                             seed_file=SEED_FILE)
+        yield project_path
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorSeqInfoSecondRun:
+    def test_seqinfo_second_run_context_dir_exists(self, sim_seqinfo_twice):
+        ctx_dir = sim_seqinfo_twice + "output/vcf_files/simulations/96/"
+        assert os.path.isdir(ctx_dir)
+
+
+# ─── Non-standard DBS context (line 224) ──────────────────────────────────────
+# context "DBS186" → file_name = '.' + context (not '.DBS78')
+
+@pytest.fixture(scope="module")
+def sim_dbs186():
+    project_path = _setup_project(DBS_VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, ["DBS186"],
+                             simulations=SIMULATIONS, region="1", seed_file=SEED_FILE)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_DBS186/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorDBS186:
+    def test_dbs186_maf_created(self, sim_dbs186):
+        assert os.path.exists(sim_dbs186)
+
+
+# ─── Non-standard ID context (line 231) ───────────────────────────────────────
+# context "ID415" → file_name = '.' + context (not '.ID83')
+
+@pytest.fixture(scope="module")
+def sim_id415():
+    project_path = _setup_project(INDEL_VCF_PATH)
+    try:
+        matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+        SigProfilerSimulator(PROJECT, project_path, GENOME, ["ID415"],
+                             simulations=SIMULATIONS, region="1", seed_file=SEED_FILE)
+        maf = (
+            f"{project_path}output/simulations/"
+            f"{PROJECT}_simulations_{GENOME}_ID415/{SIMULATIONS}.maf"
+        )
+        yield maf
+    finally:
+        shutil.rmtree(project_path, ignore_errors=True)
+
+
+@grch37
+class TestSimulatorID415:
+    def test_id415_maf_created(self, sim_id415):
+        assert os.path.exists(sim_id415)
+
+
 # ─── Reproducibility ──────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
