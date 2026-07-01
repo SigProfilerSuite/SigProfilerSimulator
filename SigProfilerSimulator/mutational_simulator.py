@@ -1553,12 +1553,11 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												indel_lengths.remove(M_length)
 												repeat_lengths.remove(int(indels_M[1]))
 												del indel_types_M[indels_M]
-											break
-
 											# Updates the chromosome with the current INDEL if desired
 											if updating:
 												sequence = update_chromosome(sequence, random_number, sequence[random_number:int(indels_M[0])+random_number], 'Ins')
 												location_range = len(sequence)
+											break
 
 
 								# Simulates the insertion INDELs that have 0 repeats
@@ -1665,12 +1664,11 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 													indel_lengths.remove(int(indels_O[0]))
 													repeat_lengths.remove(int(indels_O[1]))
 													del indel_types_O[indels_O]
-												break
-
 												# Updates the chromosome with the current INDEL if desired
 												if updating:
 													sequence = update_chromosome(sequence, random_number, sequence[random_number:int(indels_O[0])+random_number], 'Ins')
 													location_range = len(sequence)
+												break
 										break
 						
 
