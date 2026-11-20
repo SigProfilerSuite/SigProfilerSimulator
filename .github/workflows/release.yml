@@ -15,6 +15,9 @@ jobs:
     permissions:
       contents: write
 
+    outputs:
+      version: ${{ steps.get_version.outputs.VERSION }}
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v6
@@ -43,7 +46,7 @@ jobs:
           latest=$(curl -s \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/releases/latest \
-            | jq -r '.tag_name' | sed 's/^v//')
+            | jq -r '.tag_name // "v0.0.0"' | sed 's/^v//')
           echo "LATEST_RELEASE=$latest" >> $GITHUB_ENV
 
       - name: Check release version
@@ -85,3 +88,38 @@ jobs:
           body_path: RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sync-dev:
+    needs: release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Merge master into a sync branch off dev
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git fetch origin master dev
+          git checkout -b sync/master-into-dev-${{ github.run_id }} origin/dev
+          git merge origin/master --no-edit
+
+      - name: Push sync branch
+        run: git push origin sync/master-into-dev-${{ github.run_id }}
+
+      - name: Open PR into dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base dev \
+            --head sync/master-into-dev-${{ github.run_id }} \
+            --title "chore: sync master into dev after v${{ needs.release.outputs.version }}" \
+            --body "Automated sync of \`master\` into \`dev\` after release v${{ needs.release.outputs.version }}."

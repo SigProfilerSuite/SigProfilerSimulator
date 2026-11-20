@@ -10,3 +10,7 @@ build/
 
 # Hidden files and directories
 *.DS_Store
+
+# Coverage reports
+.coverage
+.coverage.*
