@@ -1,0 +1,13 @@
+Hugo_symbol	Entrez_gene_ID	Center	Genome	Chrom	Start_position	End_position	Strand	Variant_Classification	Variant_Type	Reference_Allele	Tumor_Seq_Allele1	Tumor_Seq_Allele2	dbSNP_RS	dbSNP_Val_Status	Tumor_Sample_Barcode	matGenClass
+.	.	sims	GRCh37	1	7961668	7961668	-1	.	SNP	G	.	T	.	.	GRCh37_test_1	TGT
+.	.	sims	GRCh37	1	202847734	202847734	-1	.	SNP	G	.	A	.	.	GRCh37_test_1	AGT
+.	.	sims	GRCh37	1	213480156	213480156	+1	.	SNP	T	.	A	.	.	GRCh37_test_1	ATA
+.	.	sims	GRCh37	1	237935763	237935763	-1	.	SNP	A	.	G	.	.	GRCh37_test_1	GAA
+.	.	sims	GRCh37	1	239440526	239440526	+1	.	SNP	C	.	T	.	.	GRCh37_test_1	GCT
+.	.	sims	GRCh37	1	89428785	89428785	-1	.	SNP	A	.	G	.	.	GRCh37_test_1	GAG
+.	.	sims	GRCh37	1	186620212	186620212	+1	.	SNP	T	.	G	.	.	GRCh37_test_1	ATC
+.	.	sims	GRCh37	1	96522363	96522363	+1	.	SNP	C	.	A	.	.	GRCh37_test_1	TCC
+.	.	sims	GRCh37	1	154750317	154750317	+1	.	SNP	C	.	T	.	.	GRCh37_test_1	TCC
+.	.	sims	GRCh37	1	57403834	57403834	+1	.	SNP	T	.	A	.	.	GRCh37_test_1	GTC
+.	.	sims	GRCh37	1	212647498	212647498	+1	.	SNP	T	.	G	.	.	GRCh37_test_1	GTG
+.	.	sims	GRCh37	1	91646651	91646651	+1	.	SNP	C	.	A	.	.	GRCh37_test_1	CCC

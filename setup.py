@@ -15,7 +15,7 @@ def readme():
         return long_description
 
 
-VERSION = "1.2.3"
+VERSION = "1.3.0"
 
 
 def write_version_py(filename="SigProfilerSimulator/version.py"):
@@ -58,4 +58,9 @@ setup(
     ],
     include_package_data=True,
     zip_safe=False,
+    entry_points={
+        "console_scripts": [
+            "SigProfilerSimulator=SigProfilerSimulator.sigprofilesimulator_cli:main_function",
+        ],
+    },
 )

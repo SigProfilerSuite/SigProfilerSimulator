@@ -11,18 +11,12 @@ import random
 import fastrand
 import os
 import pickle
-import subprocess
-import argparse
-import datetime
 import shutil
 import bisect
 import numpy as np
 from SigProfilerMatrixGenerator.scripts import MutationMatrixGenerator as matRef
-# from memory_profiler import profile
-# from pympler.tracker import SummaryTracker
 import pandas as pd
 import re
-start_run = time.time()
 
 
 #################################### Functions ###########################################
@@ -67,13 +61,15 @@ def probability_mask (chrom, mask):
 	if chrom not in maskMatrix.index:
 		return(maskRanges, maskProbs)
 	else:
-		maskMatrix = maskMatrix.loc[chrom]
+		maskMatrix = maskMatrix.loc[[chrom]]
 		maskMatrix["Lengths"] = maskMatrix["End"] - maskMatrix["Start"] + 1
 		maskRanges = [[x,y] for x,y in zip(list(maskMatrix["Start"]), list(maskMatrix["Lengths"]))]
 		maskProbs = list(maskMatrix["Probability"])
 		if abs(sum(maskProbs) - 1) > 0.01:
-			print("Mutation rate mask distribution is incomplete. Please ensure that the distribution probabilites sums to 1 across each chromosome.")
-			sys.exit()
+			raise ValueError(
+				"Mutation rate mask distribution is incomplete. "
+				"Probabilities must sum to 1 across each chromosome."
+			)
 		return(maskRanges, maskProbs)
 
 def noise (samples, noisePoisson=False, noiseUniform=0):
@@ -136,7 +132,7 @@ def combine_simulation_files (iterations, output_path, chromosomes, samples=[], 
 						with open(output_path + str(i) + "_" + chrom + extension + ".maf",'rb') as fd:
 							shutil.copyfileobj(fd, f)
 						os.remove(output_path  + str(i) + "_" + chrom + extension + ".maf")
-					except:
+					except FileNotFoundError:
 						pass
 
 def chrom_proportions (chrom_path, genome, chromosomes):
@@ -1249,7 +1245,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 														# print(chrom, mutationsCount)
 														u = 0
 													except:
-														sys.stderr.write(mainType_ins, complete_indel, indel_types, mutationsCount)
+														sys.stderr.write(f"{mainType_ins} {complete_indel} {indel_types} {mutationsCount}\n")
 														print(mainType_ins, complete_indel, indel_types, mutationsCount)
 													if mutationsCount[complete_indel] == 0:
 														del mutationsCount[complete_indel]
@@ -1557,12 +1553,11 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												indel_lengths.remove(M_length)
 												repeat_lengths.remove(int(indels_M[1]))
 												del indel_types_M[indels_M]
-											break
-
 											# Updates the chromosome with the current INDEL if desired
 											if updating:
 												sequence = update_chromosome(sequence, random_number, sequence[random_number:int(indels_M[0])+random_number], 'Ins')
 												location_range = len(sequence)
+											break
 
 
 								# Simulates the insertion INDELs that have 0 repeats
@@ -1669,12 +1664,11 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 													indel_lengths.remove(int(indels_O[0]))
 													repeat_lengths.remove(int(indels_O[1]))
 													del indel_types_O[indels_O]
-												break
-
 												# Updates the chromosome with the current INDEL if desired
 												if updating:
 													sequence = update_chromosome(sequence, random_number, sequence[random_number:int(indels_O[0])+random_number], 'Ins')
 													location_range = len(sequence)
+												break
 										break
 						
 
@@ -1960,7 +1954,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 															# print(chrom, tsb_type, mutationsCountTSB[tsb_type])
 															u = 0
 														except:
-															sys.stderr.write(mainType_ins, complete_indel, indel_types[tsb_type], mutationsCountTSB)
+															sys.stderr.write(f"{mainType_ins} {complete_indel} {indel_types[tsb_type]} {mutationsCountTSB}\n")
 															# print(mainType_ins, complete_indel, indel_types[tsb_type], mutationsCountTSB)
 														if mutationsCountTSB[tsb_type][complete_indel] == 0:
 															del mutationsCountTSB[tsb_type][complete_indel]
@@ -2324,7 +2318,6 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 								# stalling on a rare/non-existent mutation
 								l += 1
 								if l > 1000000:
-									logging.info(sample + " " + mutationsCount)
 									print (sample, mutationsCount, chrom)
 								# 	if sample not in left_over_mutations:
 								# 		left_over_mutations[sample] = {}
