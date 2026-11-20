@@ -63,23 +63,45 @@ jobs:
               raise SystemExit(f"Error: New version ({new_version}) is not higher than latest release ({latest_version})")
           EOF
 
+      # The steps below are idempotent so the job can be safely re-run after a
+      # transient failure (e.g. a GitHub storage error while pushing the tag).
       - name: Generate release notes and update CHANGELOG.md
         run: |
-          git-cliff --unreleased --strip all --tag "v${{ steps.get_version.outputs.VERSION }}" > RELEASE_NOTES.md
-          git-cliff --unreleased --tag "v${{ steps.get_version.outputs.VERSION }}" --prepend CHANGELOG.md
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          if grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "CHANGELOG.md already has $VERSION; reusing it for the release notes."
+            awk -v v="## [$VERSION]" 'index($0, v)==1 {f=1; next} f && /^## \[/ {exit} f' CHANGELOG.md > RELEASE_NOTES.md
+          else
+            git-cliff --unreleased --strip all --tag "v$VERSION" > RELEASE_NOTES.md
+            git-cliff --unreleased --tag "v$VERSION" --prepend CHANGELOG.md
+          fi
 
       - name: Commit and push CHANGELOG.md
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add CHANGELOG.md
-          git commit -m "chore: update CHANGELOG.md for v${{ steps.get_version.outputs.VERSION }}"
-          git push origin HEAD:master
+          if git diff --cached --quiet; then
+            echo "CHANGELOG.md unchanged; nothing to commit."
+          else
+            git commit -m "chore: update CHANGELOG.md for v${{ steps.get_version.outputs.VERSION }}"
+            git push origin HEAD:master
+          fi
 
       - name: Create Git tag
         run: |
-          git tag v${{ steps.get_version.outputs.VERSION }}
-          git push origin v${{ steps.get_version.outputs.VERSION }}
+          TAG="v${{ steps.get_version.outputs.VERSION }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on the remote; skipping."
+          else
+            git tag -f "$TAG"
+            for i in 1 2 3 4 5; do
+              git push origin "$TAG" && exit 0
+              echo "Push of $TAG failed (attempt $i); retrying in 20s..."
+              sleep 20
+            done
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -103,18 +125,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check whether dev is already up to date
+        id: check
+        run: |
+          git fetch origin master dev
+          if git merge-base --is-ancestor origin/master origin/dev; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "dev already contains master; nothing to sync."
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Merge master into a sync branch off dev
+        if: steps.check.outputs.needed == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git fetch origin master dev
           git checkout -b sync/master-into-dev-${{ github.run_id }} origin/dev
           git merge origin/master --no-edit
 
       - name: Push sync branch
+        if: steps.check.outputs.needed == 'true'
         run: git push origin sync/master-into-dev-${{ github.run_id }}
 
       - name: Open PR into dev
+        if: steps.check.outputs.needed == 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
