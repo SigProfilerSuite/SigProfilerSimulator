@@ -5,6 +5,7 @@ Run with: pytest tests/test_mutational_simulator_files.py -v
 """
 
 import os
+import pickle
 import shutil
 import sys
 
@@ -14,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from SigProfilerSimulator.mutational_simulator import (
     bed_ranges,
+    chrom_proportions_BED,
     combine_simulation_files,
     probability_mask,
     simulator,
@@ -46,7 +48,8 @@ MAF_HEADER = "\t".join([
 
 @pytest.fixture
 def bed_file(tmp_path):
-    content = "chrom\tstart\tend\n1\t100\t105\n1\t200\t203\n"
+    """Standard headerless BED, as produced by real tools (audit finding #8)."""
+    content = "1\t100\t105\n1\t200\t203\n"
     p = tmp_path / "test.bed"
     p.write_text(content)
     return str(p)
@@ -81,25 +84,117 @@ class TestBedRanges:
         expected = sorted(set(range(100, 105)) | set(range(200, 203)))
         assert sorted(result) == expected
 
-    def test_cushion_extends_range(self, bed_file):
-        result = bed_ranges("1", bed_file, cushion=2)
-        expected = sorted(set(range(98, 107)) | set(range(198, 205)))
-        assert sorted(result) == expected
+    def test_cushion_excludes_edges(self, tmp_path):
+        """Finding #9: cushion excludes edge bases, it does not expand the range."""
+        p = tmp_path / "cushion.bed"
+        p.write_text("1\t100\t110\n")
+        result = bed_ranges("1", str(p), cushion=2)
+        assert sorted(result) == list(range(102, 108))
+
+    def test_cushion_can_empty_a_short_interval(self, tmp_path):
+        p = tmp_path / "cushion_short.bed"
+        p.write_text("1\t100\t103\n")
+        result = bed_ranges("1", str(p), cushion=2)
+        assert result == []
 
     def test_absent_chrom_returns_empty(self, bed_file):
         result = bed_ranges("9", bed_file, cushion=0)
         assert result == []
 
     def test_chr_prefix_stripped(self, tmp_path):
-        content = "chrom\tstart\tend\nchr1\t100\t105\n"
         p = tmp_path / "chr.bed"
-        p.write_text(content)
+        p.write_text("chr1\t100\t105\n")
         result = bed_ranges("1", str(p), cushion=0)
         assert sorted(result) == list(range(100, 105))
 
     def test_result_sorted_and_unique(self, bed_file):
         result = bed_ranges("1", bed_file, cushion=0)
         assert result == sorted(set(result))
+
+    def test_headerless_bed_is_not_truncated(self, tmp_path):
+        """Finding #8: a leading data row must not be mistaken for a header."""
+        p = tmp_path / "headerless.bed"
+        p.write_text("1\t100\t103\n")
+        result = bed_ranges("1", str(p), cushion=0)
+        assert sorted(result) == [100, 101, 102]
+
+    def test_blank_and_pragma_lines_are_skipped(self, tmp_path):
+        p = tmp_path / "pragma.bed"
+        p.write_text("track name=demo\n\n#comment\n1\t100\t103\n")
+        result = bed_ranges("1", str(p), cushion=0)
+        assert sorted(result) == [100, 101, 102]
+
+    def test_target_chromosome_not_skipped_while_scanning(self, tmp_path):
+        """Finding #8: searching past several non-matching rows must not skip
+        rows via a double-advanced file iterator."""
+        p = tmp_path / "scan.bed"
+        p.write_text("2\t0\t5\n3\t0\t5\n4\t0\t5\n5\t0\t5\n1\t100\t103\n")
+        result = bed_ranges("1", str(p), cushion=0)
+        assert sorted(result) == [100, 101, 102]
+
+    def test_non_contiguous_chromosome_rows_all_collected(self, tmp_path):
+        """Finding #8: rows for the target chromosome need not be grouped
+        together; a later unrelated chromosome must not stop the scan."""
+        p = tmp_path / "interleaved.bed"
+        p.write_text("1\t100\t103\n2\t0\t5\n1\t200\t203\n")
+        result = bed_ranges("1", str(p), cushion=0)
+        expected = sorted(set(range(100, 103)) | set(range(200, 203)))
+        assert sorted(result) == expected
+
+
+# ─── chrom_proportions_BED ────────────────────────────────────────────────────
+
+class TestChromProportionsBED:
+    def test_proportions_match_eligible_base_counts(self, tmp_path):
+        """Finding #6: proportions must reflect each chromosome's share of the
+        total eligible bases (reproduces the audit's 200/50 example)."""
+        bed = tmp_path / "two_chrom.bed"
+        bed.write_text("1\t0\t200\n2\t0\t50\n")
+        chrom_dir = tmp_path / "chroms"
+        chrom_dir.mkdir()
+
+        chrom_proportions_BED(str(bed), str(chrom_dir) + "/", "GRCh37", ["1", "2"])
+
+        with open(str(chrom_dir) + "/BED_GRCh37_proportions.txt", "rb") as f:
+            probs = pickle.load(f)
+        assert probs == pytest.approx([0.8, 0.2])
+
+    def test_proportions_sum_to_one(self, tmp_path):
+        bed = tmp_path / "three_chrom.bed"
+        bed.write_text("1\t0\t30\n2\t0\t20\n3\t0\t50\n")
+        chrom_dir = tmp_path / "chroms"
+        chrom_dir.mkdir()
+
+        chrom_proportions_BED(str(bed), str(chrom_dir) + "/", "GRCh37", ["1", "2", "3"])
+
+        with open(str(chrom_dir) + "/BED_GRCh37_proportions.txt", "rb") as f:
+            probs = pickle.load(f)
+        assert sum(probs) == pytest.approx(1.0)
+
+    def test_chr_prefixed_names_do_not_raise(self, tmp_path):
+        """Finding #7: chr-prefixed names must not cause a KeyError."""
+        bed = tmp_path / "chr_prefixed.bed"
+        bed.write_text("chr1\t0\t100\nchr2\t0\t100\n")
+        chrom_dir = tmp_path / "chroms"
+        chrom_dir.mkdir()
+
+        chrom_proportions_BED(str(bed), str(chrom_dir) + "/", "GRCh37", ["1", "2"])
+
+        with open(str(chrom_dir) + "/BED_GRCh37_proportions.txt", "rb") as f:
+            probs = pickle.load(f)
+        assert probs == pytest.approx([0.5, 0.5])
+
+    def test_multiple_rows_per_chromosome_accumulate(self, tmp_path):
+        bed = tmp_path / "multi_row.bed"
+        bed.write_text("1\t0\t50\n1\t100\t150\n2\t0\t100\n")
+        chrom_dir = tmp_path / "chroms"
+        chrom_dir.mkdir()
+
+        chrom_proportions_BED(str(bed), str(chrom_dir) + "/", "GRCh37", ["1", "2"])
+
+        with open(str(chrom_dir) + "/BED_GRCh37_proportions.txt", "rb") as f:
+            probs = pickle.load(f)
+        assert probs == pytest.approx([0.5, 0.5])
 
 
 # ─── probability_mask ─────────────────────────────────────────────────────────

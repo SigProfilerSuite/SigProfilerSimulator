@@ -186,39 +186,24 @@ def chrom_proportions_BED (bed_file, chrom_path, genome, chromosomes):
 		   genome + _proportions.txt (ex: GRCh37_proportions.txt)
 	'''
 	chromosome_lengths = {}
-	chromosomeProbs = []
-	total_length = 0
-	first_line = True
-	length = 0
-	total = 0
 	chromosomes = []
 	with open (bed_file) as f:
-		next(f)
 		for lines in f:
-			line = lines.strip().split()
-			chrom = line[0]
-			if chrom not in chromosomes:
-				chromosomes.append(chrom)
+			line = lines.strip()
+			if not line or line.startswith(("#", "track", "browser")):
+				continue
+			fields = line.split()
+			chrom = fields[0]
 			if len(chrom) > 2:
 				chrom = chrom[3:]
-			start = int(line[1])
-			end = int(line[2])
-			if first_line:
-				chrom_initial = chrom
-				first_line = False
+			if chrom not in chromosomes:
+				chromosomes.append(chrom)
+			start = int(fields[1])
+			end = int(fields[2])
+			chromosome_lengths[chrom] = chromosome_lengths.get(chrom, 0) + (end - start)
 
-
-			if chrom == chrom_initial:
-				length += end-start
-			else:
-				total += length
-				chromosome_lengths[chrom_initial] = length
-				chrom_initial = chrom
-				length = end-start
-				total_length += length
-		total_length += length
-		chromosome_lengths[chrom_initial] = length
-
+	total_length = sum(chromosome_lengths.values())
+	chromosomeProbs = []
 	for chroms in chromosomes:
 		chromosomeProbs.append(chromosome_lengths[chroms]/total_length)
 
@@ -296,43 +281,32 @@ def bed_ranges (chrom_sim, bed_file, cushion):
 	'''
 
 	chrom_range = []
-	chrom_reached = False
-	first_reached = True
 	with open(bed_file) as f:
-		next(f)
 		for lines in f:
+			line = lines.strip()
+			if not line or line.startswith(("#", "track", "browser")):
+				continue
 
 			# Saves the relevant data for each line in the file
-			line = lines.strip().split()
-			chrom = line[0]
+			fields = line.split()
+			chrom = fields[0]
 			if len(chrom) > 2:
 				chrom = chrom[3:]
-			start = int(line[1])
-			end = int(line[2])
 
-			# Skips the line if it does not match the chromosome
-			# of interest
+			# Skips the line if it does not match the chromosome of interest
 			if chrom != chrom_sim:
-				if first_reached:
-					try:
-						next(f)
-					except:
-						break
-				else:
-					break
+				continue
 
-			# Saves the positions within the given range if the range
-			# falls on the chromosome of interest
-			else:
-				if first_reached:
-					chrom_reached = True
-					first_reached = False
-				for i in range (start-cushion, end+cushion, 1):
-					chrom_range.append(i)
+			start = int(fields[1])
+			end = int(fields[2])
+
+			# cushion excludes edge bases from the eligible range rather than
+			# expanding it: eligible coordinates are [start+cushion, end-cushion)
+			for i in range (start+cushion, end-cushion, 1):
+				chrom_range.append(i)
 
 	# Sorts and returns the list in case the BED file was not sorted previously
-	chrom_range.sort()
-	chrom_range = list(set(chrom_range))
+	chrom_range = sorted(set(chrom_range))
 	return(chrom_range)
 
 
