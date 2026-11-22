@@ -720,3 +720,21 @@ class TestContextsListNotMutated:
             )
         finally:
             shutil.rmtree(project_path, ignore_errors=True)
+
+
+# ─── stderr is restored, not left closed (audit sigprofilersimulator-2026-05 #22) ─
+
+@grch37
+class TestStderrRestored:
+    def test_stderr_restored_after_successful_run(self):
+        import sys
+        original_stderr = sys.stderr
+        project_path = _setup_project(VCF_PATH)
+        try:
+            matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+            SigProfilerSimulator(PROJECT, project_path, GENOME, ["6"],
+                                 simulations=SIMULATIONS, region="1")
+            assert sys.stderr is original_stderr
+            assert not sys.stderr.closed
+        finally:
+            shutil.rmtree(project_path, ignore_errors=True)

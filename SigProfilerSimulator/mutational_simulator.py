@@ -803,6 +803,14 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 			"coordinates downstream. Simulate indels with updating=False."
 		)
 
+	if bed and mask:
+		raise ValueError(
+			"bed_file and mask cannot be used together: a mask-selected position is an "
+			"absolute genomic coordinate, not an index into the BED-eligible positions, so "
+			"combining them silently selects the wrong position (or raises IndexError). "
+			"Simulate with only one of bed_file or mask at a time."
+		)
+
 	left_over_mutations = {}
 	
 	dinuc_non_tsb = ['AC', 'AT', 'CA', 'CG', 'GC', 'TA']

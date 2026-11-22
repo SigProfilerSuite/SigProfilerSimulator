@@ -714,3 +714,32 @@ class TestUpdatingSequenceIsolation:
                 "simulation's updating=True edits leaked into this one, "
                 "exhausting the 3 eligible positions" % (sim_n, len(rows))
             )
+
+
+# ─── bed + mask combination is rejected (audit sigprofilersimulator-2026-05 #20) ─
+
+class TestBedMaskGuard:
+    def test_bed_and_mask_together_raises(self):
+        """Finding #20: a mask-selected coordinate is absolute, not a BED-array
+        index; combining bed_file and mask silently mixes coordinate systems."""
+        with pytest.raises(ValueError, match="bed_file and mask cannot be used together"):
+            simulator(
+                sample_names=[], mutation_tracker={}, chromosome_string_path="",
+                tsb_ref={}, tsb_ref_rev={}, simulation_number=1, seed=1, cushion=0,
+                output_path="", updating=False, chromosomes=[], project="p", genome="g",
+                bed=True, bed_file="unused.bed", contexts=["96"], overlap=False,
+                project_path="", seqInfo=False, log_file="", spacing=1,
+                noisePoisson=False, noiseUniform=0, vcf=False, mask="unused_mask.tsv",
+            )
+
+    def test_bed_alone_does_not_raise_the_guard(self):
+        with pytest.raises(Exception) as exc_info:
+            simulator(
+                sample_names=[], mutation_tracker={}, chromosome_string_path="",
+                tsb_ref={}, tsb_ref_rev={}, simulation_number=1, seed=1, cushion=0,
+                output_path="", updating=False, chromosomes=[], project="p", genome="g",
+                bed=True, bed_file="unused.bed", contexts=["96"], overlap=False,
+                project_path="", seqInfo=False, log_file="", spacing=1,
+                noisePoisson=False, noiseUniform=0, vcf=False, mask=None,
+            )
+        assert "bed_file and mask cannot be used together" not in str(exc_info.value)
