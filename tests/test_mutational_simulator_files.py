@@ -17,8 +17,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from SigProfilerSimulator.mutational_simulator import (
     bed_ranges,
+    chrom_proportions,
     chrom_proportions_BED,
     combine_simulation_files,
+    mut_tracker,
     probability_mask,
     simulator,
 )
@@ -505,4 +507,91 @@ class TestSpacingAndOverlapEnforcement:
         assert not snp_rows, (
             "an SBS6 event was placed on the DBS's reserved second base: "
             "DBS at %r, SBS6 rows %r" % (dbs_pos, snp_rows)
+        )
+
+
+# ─── ID chromosome allocation (audit sigprofilersimulator-2026-05 #10, #11) ───
+
+def _write_fake_chrom(chrom_dir, name, length):
+    (chrom_dir / (name + ".txt")).write_bytes(b"A" * length)
+
+
+class TestIDChromosomeAllocation:
+    def test_male_and_female_caches_do_not_collide(self, tmp_path):
+        """Finding #10: a male run's cached proportions (with Y) and a female
+        run's (without Y) must coexist, not overwrite each other, so a stale
+        vector is never read misaligned against the wrong chromosome list."""
+        chrom_dir = tmp_path / "chroms"
+        chrom_dir.mkdir()
+        chrom_dir_str = str(chrom_dir) + "/"
+        _write_fake_chrom(chrom_dir, "X", 40)
+        _write_fake_chrom(chrom_dir, "Y", 20)
+        _write_fake_chrom(chrom_dir, "1", 60)
+
+        def existing_proportion_files():
+            return sorted(
+                p.name for p in chrom_dir.iterdir() if p.name.endswith("_proportions.txt")
+            )
+
+        # A male run caches proportions for X, Y, 1.
+        chrom_proportions(chrom_dir_str, "FAKE", ["X", "Y", "1"])
+        male_files = existing_proportion_files()
+        male_contents = {name: (chrom_dir / name).read_bytes() for name in male_files}
+
+        # A later female run computes (and caches) its own, over X, 1 only.
+        chrom_proportions(chrom_dir_str, "FAKE", ["X", "1"])
+
+        # The male cache must still be exactly what it was: a separate file,
+        # not overwritten by the female run.
+        for name, content in male_contents.items():
+            assert (chrom_dir / name).read_bytes() == content, (
+                "male cache file %r changed after a female run -- the two "
+                "chromosome sets collided on one shared filename" % name
+            )
+        assert existing_proportion_files() != male_files, (
+            "no new cache file was created for the female chromosome set -- "
+            "it reused (and could misalign with) the male one"
+        )
+
+        samples = {"ID": {"S1": {"1:Del:C:0": 10}}}
+        log_file = str(tmp_path / "log.txt")
+        tracker = mut_tracker(
+            ["S1"], samples, "S1", {"ID": "unused"}, chrom_dir_str, "FAKE",
+            ["X", "1"], False, log_file,
+        )
+
+        allocation = tracker["ID"]["S1"]["1:Del:C:0"]
+        assert allocation == {"X": 4, "1": 6}, allocation
+
+    def test_residual_allocation_is_opportunity_weighted(self, tmp_path):
+        """Finding #11: the leftover-mutation residual must favor chromosomes
+        by their genomic opportunity, not be uniform."""
+        chrom_dir = tmp_path / "chroms2"
+        chrom_dir.mkdir()
+        chrom_dir_str = str(chrom_dir) + "/"
+        _write_fake_chrom(chrom_dir, "A", 999)
+        _write_fake_chrom(chrom_dir, "B", 1)
+        chrom_proportions(chrom_dir_str, "FAKE2", ["A", "B"])
+
+        samples = {"ID": {"S1": {"1:Del:C:0": 500}}}
+        log_file = str(tmp_path / "log2.txt")
+
+        b_got_residual = 0
+        trials = 30
+        for _ in range(trials):
+            tracker = mut_tracker(
+                ["S1"], samples, "S1", {"ID": "unused"}, chrom_dir_str, "FAKE2",
+                ["A", "B"], False, log_file,
+            )
+            allocation = tracker["ID"]["S1"]["1:Del:C:0"]
+            assert allocation["A"] + allocation["B"] == 500
+            if allocation["B"] == 1:
+                b_got_residual += 1
+
+        # B has ~0.1% of genomic opportunity: under uniform allocation it would
+        # win the single residual slot roughly half the time; under
+        # opportunity-weighted allocation, essentially never.
+        assert b_got_residual <= 2, (
+            "B (0.1%% of opportunity) won the residual slot %d/%d times -- "
+            "looks uniform, not opportunity-weighted" % (b_got_residual, trials)
         )

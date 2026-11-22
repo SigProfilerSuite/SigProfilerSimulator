@@ -164,7 +164,10 @@ def chrom_proportions (chrom_path, genome, chromosomes):
 	for lengths in chromosome_lengths:
 		chromosomeProbs.append(lengths/total_length)
 
-	with open (chrom_path + genome + "_proportions.txt", 'wb') as out:
+	# Keyed by the exact chromosome set (e.g. gender) so a run with a
+	# different chromosome set never reads another run's cached vector.
+	chrom_signature = "-".join(sorted(chromosomes))
+	with open (chrom_path + genome + "_" + chrom_signature + "_proportions.txt", 'wb') as out:
 		pickle.dump(chromosomeProbs, out)
 
 def chrom_proportions_BED (bed_file, chrom_path, genome, chromosomes):
@@ -680,7 +683,8 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 				with open (chromosome_string_path + "BED_" + genome + "_proportions.txt", 'rb') as probs:
 					chromosomeProbs = pickle.load(probs)
 			else:
-				with open (chromosome_string_path + genome + "_proportions.txt", 'rb') as probs:
+				chrom_signature = "-".join(sorted(chromosomes))
+				with open (chromosome_string_path + genome + "_" + chrom_signature + "_proportions.txt", 'rb') as probs:
 					chromosomeProbs = pickle.load(probs)
 
 			for sample in sample_names:
@@ -716,7 +720,7 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 								if nuc_count == samples[context][sample][nuc]:
 									break
 								else:
-									l = fastrand.pcg32bounded(len(chromosomes))
+									l = np.random.choice(len(chromosomes), p=chromosomeProbs)
 									random_chromosome = chromosomes[l]
 									if nuc_count < samples[context][sample][nuc]:
 										mutation_tracker[context][sample][nuc][random_chromosome] += 1
