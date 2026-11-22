@@ -24,9 +24,8 @@ def write_version_py(filename="SigProfilerSimulator/version.py"):
 # THIS FILE IS GENERATED FROM SIGPROFILERSIMULATOR SETUP.PY
 short_version = '%(version)s'
 version = '%(version)s'
-Update = 'v1.2.1: Add support for mm39'
-	
-	"""
+Update = 'v%(version)s'
+"""
     fh = open(filename, "w")
     fh.write(
         cnt
@@ -53,8 +52,9 @@ setup(
     python_requires=">=3.9",
     install_requires=[
         "SigProfilerMatrixGenerator>=1.3.2",
-        "sigProfilerPlotting>=1.4.0",
         "fastrand>=1.2",
+        "numpy>=2.0.0",
+        "pandas>=2.0.0",
     ],
     include_package_data=True,
     zip_safe=False,

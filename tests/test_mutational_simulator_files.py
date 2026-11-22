@@ -25,7 +25,7 @@ from SigProfilerSimulator.mutational_simulator import (
     probability_mask,
     simulator,
 )
-from SigProfilerSimulator.SigProfilerSimulator import probability
+from SigProfilerSimulator.SigProfilerSimulator import SigProfilerSimulator, probability
 
 # Mirrors the tsb_ref / tsb_ref_rev encoding built in SigProfilerSimulator.py:
 # byte value -> [transcriptional bias, nucleotide]. simulator() takes these as
@@ -743,3 +743,44 @@ class TestBedMaskGuard:
                 noisePoisson=False, noiseUniform=0, vcf=False, mask=None,
             )
         assert "bed_file and mask cannot be used together" not in str(exc_info.value)
+
+
+# ─── early parameter validation (audit sigprofilersimulator-2026-05 #26) ──────
+
+class TestParameterValidation:
+    BASE_KWARGS = dict(
+        project="p", project_path="/tmp", genome="GRCh37", contexts=["96"],
+        simulations=1, gender="female", spacing=1, cushion=100,
+    )
+
+    def _call(self, **overrides):
+        kwargs = dict(self.BASE_KWARGS)
+        kwargs.update(overrides)
+        return SigProfilerSimulator(
+            kwargs.pop("project"), kwargs.pop("project_path"), kwargs.pop("genome"),
+            kwargs.pop("contexts"), **kwargs
+        )
+
+    def test_empty_contexts_raises(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            self._call(contexts=[])
+
+    def test_unsupported_context_raises(self):
+        with pytest.raises(ValueError, match="Unsupported context"):
+            self._call(contexts=["not-a-real-context"])
+
+    def test_invalid_gender_raises(self):
+        with pytest.raises(ValueError, match="gender must be"):
+            self._call(gender="other")
+
+    def test_non_positive_simulations_raises(self):
+        with pytest.raises(ValueError, match="simulations must be"):
+            self._call(simulations=0)
+
+    def test_negative_spacing_raises(self):
+        with pytest.raises(ValueError, match="spacing must be"):
+            self._call(spacing=-1)
+
+    def test_negative_cushion_raises(self):
+        with pytest.raises(ValueError, match="cushion must be"):
+            self._call(cushion=-1)

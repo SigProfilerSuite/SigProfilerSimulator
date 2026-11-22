@@ -738,3 +738,30 @@ class TestStderrRestored:
             assert not sys.stderr.closed
         finally:
             shutil.rmtree(project_path, ignore_errors=True)
+
+
+# ─── run manifests don't collide and record all parameters (audit sigprofilersimulator-2026-05 #30) ─
+
+@grch37
+class TestRunManifest:
+    def test_same_day_runs_get_separate_manifests(self):
+        """Finding #30: two runs on the same day must not overwrite each
+        other's log/error manifest."""
+        project_path = _setup_project(VCF_PATH)
+        try:
+            matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+            SigProfilerSimulator(PROJECT, project_path, GENOME, ["6"],
+                                 simulations=SIMULATIONS, region="1", spacing=2, cushion=50)
+            SigProfilerSimulator(PROJECT, project_path, GENOME, ["6"],
+                                 simulations=SIMULATIONS, region="1", spacing=2, cushion=50)
+            log_files = sorted(
+                f for f in os.listdir(project_path + "logs/") if f.endswith(".out")
+            )
+            assert len(log_files) == 2, "expected 2 separate manifests, found %r" % log_files
+
+            with open(project_path + "logs/" + log_files[0]) as f:
+                content = f.read()
+            assert "spacing: 2" in content
+            assert "cushion: 50" in content
+        finally:
+            shutil.rmtree(project_path, ignore_errors=True)

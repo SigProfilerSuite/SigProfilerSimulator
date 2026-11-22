@@ -109,6 +109,27 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
     '''
     contexts -> [] must be a list
     '''
+    SUPPORTED_CONTEXTS = {
+        '6', '24', '96', '192', '288', '384', '1536', '3072', '4608', '6144',
+        'DINUC', 'DBS', 'DBS186', '186', 'INDEL', 'ID', 'ID415', '415',
+    }
+    if not contexts:
+        raise ValueError("contexts must be a non-empty list.")
+    unsupported = sorted(set(contexts) - SUPPORTED_CONTEXTS)
+    if unsupported:
+        raise ValueError(
+            "Unsupported context(s): %s. Supported contexts: %s"
+            % (unsupported, sorted(SUPPORTED_CONTEXTS))
+        )
+    if gender.upper() not in ('FEMALE', 'MALE'):
+        raise ValueError("gender must be 'female' or 'male', got %r." % (gender,))
+    if simulations <= 0:
+        raise ValueError("simulations must be a positive integer, got %r." % (simulations,))
+    if spacing < 0:
+        raise ValueError("spacing must be >= 0, got %r." % (spacing,))
+    if cushion < 0:
+        raise ValueError("cushion must be >= 0, got %r." % (cushion,))
+
     _original_stderr = sys.stderr
     try:
         print("\n======================================\n        SigProfilerSimulator        \n======================================\n\nChecking for all reference files and relevant matrices...")
@@ -170,7 +191,9 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
         if region:
             chromosomes = [region]
         ############################## Log and Error Files ##################################################################################################
-        time_stamp = datetime.date.today()
+        # Includes the time (not just the date) so two runs on the same day don't overwrite
+        # each other's manifest.
+        time_stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
         error_file = project_path + 'logs/SigProfilerSimulator_' + project + "_" + genome + "_" + str(time_stamp) + ".err"
         log_file = project_path + 'logs/SigProfilerSimulator_' + project + "_" + genome + "_" + str(time_stamp) + ".out"
 
@@ -195,7 +218,7 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
         log_out.write("numpy version: "+np.__version__+"\n")
     
         log_out.write("\n-------Vital Parameters Used for the execution -------\n")
-        log_out.write("Project: {}\nGenome: {}\nInput File Path: {}\ncontexts: {}\nexome: {}\nsimulations: {}\nupdating: {}\nbed_file: {}\noverlap: {}\ngender: {}\nseqInfo: {}\nchrom_based: {}\nseed_file: {}\n".format(project, genome, project_path, contexts, str(exome), str(simulations),  str(updating), str(bed_file), str(overlap), gender, str(seqInfo), str(chrom_based), str(seed_file)))
+        log_out.write("Project: {}\nGenome: {}\nInput File Path: {}\ncontexts: {}\nexome: {}\nsimulations: {}\nupdating: {}\nbed_file: {}\noverlap: {}\ngender: {}\nseqInfo: {}\nchrom_based: {}\nseed_file: {}\nspacing: {}\nnoisePoisson: {}\nnoiseUniform: {}\ncushion: {}\nregion: {}\nvcf: {}\nmask: {}\n".format(project, genome, project_path, contexts, str(exome), str(simulations),  str(updating), str(bed_file), str(overlap), gender, str(seqInfo), str(chrom_based), str(seed_file), str(spacing), str(noisePoisson), str(noiseUniform), str(cushion), str(region), str(vcf), str(mask)))
         log_out.write("\n-------Date and Time Data------- \n")
         tic = datetime.datetime.now()
         log_out.write("Date and Clock time when the execution started: "+str(tic)+"\n\n\n")
