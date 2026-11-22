@@ -66,7 +66,7 @@ Then call the function with the required parameters:
 | `overlap` | Boolean | Allow simulated mutations to overlap. Default: `False` |
 | `updating` | Boolean | Update mutation types during simulation. Default: `False` |
 | `region` | String | Restrict simulations to a single chromosome (e.g., `"1"`). Default: `None` |
-| `mask` | String | Path to a mask file to exclude specific genomic regions from simulations. Default: `None` |
+| `mask` | String | Path to a tab-separated, per-chromosome weighted mask file with columns `Chrom`, `Start`, `End`, `Probability`. Mutations for a masked chromosome are sampled only within the listed `Start`-`End` regions, in proportion to `Probability` (which must sum to 1 per chromosome); it is an opportunity weighting, not an exclusion mask. Default: `None` |
 
 ### Supported contexts ###
 

@@ -73,6 +73,11 @@ def probability_mask (chrom, mask):
 		return(maskRanges, maskProbs)
 
 def noise (samples, noisePoisson=False, noiseUniform=0):
+	if noisePoisson and noiseUniform != 0:
+		raise ValueError(
+			"noisePoisson and noiseUniform are mutually exclusive: choose one noise mode."
+		)
+
 	if noisePoisson:
 		for mut in samples:
 			noise_value = np.random.poisson(samples[mut])
@@ -164,7 +169,10 @@ def chrom_proportions (chrom_path, genome, chromosomes):
 	for lengths in chromosome_lengths:
 		chromosomeProbs.append(lengths/total_length)
 
-	with open (chrom_path + genome + "_proportions.txt", 'wb') as out:
+	# Keyed by the exact chromosome set (e.g. gender) so a run with a
+	# different chromosome set never reads another run's cached vector.
+	chrom_signature = "-".join(sorted(chromosomes))
+	with open (chrom_path + genome + "_" + chrom_signature + "_proportions.txt", 'wb') as out:
 		pickle.dump(chromosomeProbs, out)
 
 def chrom_proportions_BED (bed_file, chrom_path, genome, chromosomes):
@@ -186,39 +194,24 @@ def chrom_proportions_BED (bed_file, chrom_path, genome, chromosomes):
 		   genome + _proportions.txt (ex: GRCh37_proportions.txt)
 	'''
 	chromosome_lengths = {}
-	chromosomeProbs = []
-	total_length = 0
-	first_line = True
-	length = 0
-	total = 0
 	chromosomes = []
 	with open (bed_file) as f:
-		next(f)
 		for lines in f:
-			line = lines.strip().split()
-			chrom = line[0]
-			if chrom not in chromosomes:
-				chromosomes.append(chrom)
+			line = lines.strip()
+			if not line or line.startswith(("#", "track", "browser")):
+				continue
+			fields = line.split()
+			chrom = fields[0]
 			if len(chrom) > 2:
 				chrom = chrom[3:]
-			start = int(line[1])
-			end = int(line[2])
-			if first_line:
-				chrom_initial = chrom
-				first_line = False
+			if chrom not in chromosomes:
+				chromosomes.append(chrom)
+			start = int(fields[1])
+			end = int(fields[2])
+			chromosome_lengths[chrom] = chromosome_lengths.get(chrom, 0) + (end - start)
 
-
-			if chrom == chrom_initial:
-				length += end-start
-			else:
-				total += length
-				chromosome_lengths[chrom_initial] = length
-				chrom_initial = chrom
-				length = end-start
-				total_length += length
-		total_length += length
-		chromosome_lengths[chrom_initial] = length
-
+	total_length = sum(chromosome_lengths.values())
+	chromosomeProbs = []
 	for chroms in chromosomes:
 		chromosomeProbs.append(chromosome_lengths[chroms]/total_length)
 
@@ -296,43 +289,32 @@ def bed_ranges (chrom_sim, bed_file, cushion):
 	'''
 
 	chrom_range = []
-	chrom_reached = False
-	first_reached = True
 	with open(bed_file) as f:
-		next(f)
 		for lines in f:
+			line = lines.strip()
+			if not line or line.startswith(("#", "track", "browser")):
+				continue
 
 			# Saves the relevant data for each line in the file
-			line = lines.strip().split()
-			chrom = line[0]
+			fields = line.split()
+			chrom = fields[0]
 			if len(chrom) > 2:
 				chrom = chrom[3:]
-			start = int(line[1])
-			end = int(line[2])
 
-			# Skips the line if it does not match the chromosome
-			# of interest
+			# Skips the line if it does not match the chromosome of interest
 			if chrom != chrom_sim:
-				if first_reached:
-					try:
-						next(f)
-					except:
-						break
-				else:
-					break
+				continue
 
-			# Saves the positions within the given range if the range
-			# falls on the chromosome of interest
-			else:
-				if first_reached:
-					chrom_reached = True
-					first_reached = False
-				for i in range (start-cushion, end+cushion, 1):
-					chrom_range.append(i)
+			start = int(fields[1])
+			end = int(fields[2])
+
+			# cushion excludes edge bases from the eligible range rather than
+			# expanding it: eligible coordinates are [start+cushion, end-cushion)
+			for i in range (start+cushion, end-cushion, 1):
+				chrom_range.append(i)
 
 	# Sorts and returns the list in case the BED file was not sorted previously
-	chrom_range.sort()
-	chrom_range = list(set(chrom_range))
+	chrom_range = sorted(set(chrom_range))
 	return(chrom_range)
 
 
@@ -395,7 +377,7 @@ def mutation_preparation_chromosomes (catalogue_files, matrix_path, chromosomes,
 						sample_index += 1  
 
 
-	sample_names = list(set(sample_names))
+	sample_names = list(dict.fromkeys(sample_names))
 	print("Files successfully read and mutations collected. Mutation assignment starting now.", file=out)
 	print("Files successfully read and mutations collected. Mutation assignment starting now.")
 	out.close()
@@ -457,7 +439,7 @@ def mutation_preparation_region(catalogue_files, matrix_path, project, log_file,
 					sample_index += 1  
 
 
-	sample_names = list(set(sample_names))
+	sample_names = list(dict.fromkeys(sample_names))
 	print("Files successfully read and mutations collected. Mutation assignment starting now.", file=out)
 	print("Files successfully read and mutations collected. Mutation assignment starting now.")
 	out.close()
@@ -515,7 +497,7 @@ def mutation_preparation (catalogue_files, log_file):
 						samples[context][sample][nuc] = int(mutCount)
 					sample_index += 1  
 
-	sample_names = list(set(sample_names))
+	sample_names = list(dict.fromkeys(sample_names))
 	print("Files successfully read and mutations collected. Mutation assignment starting now.", file=out)
 	print("Files successfully read and mutations collected. Mutation assignment starting now.")
 	out.close()
@@ -706,7 +688,8 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 				with open (chromosome_string_path + "BED_" + genome + "_proportions.txt", 'rb') as probs:
 					chromosomeProbs = pickle.load(probs)
 			else:
-				with open (chromosome_string_path + genome + "_proportions.txt", 'rb') as probs:
+				chrom_signature = "-".join(sorted(chromosomes))
+				with open (chromosome_string_path + genome + "_" + chrom_signature + "_proportions.txt", 'rb') as probs:
 					chromosomeProbs = pickle.load(probs)
 
 			for sample in sample_names:
@@ -742,7 +725,7 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 								if nuc_count == samples[context][sample][nuc]:
 									break
 								else:
-									l = fastrand.pcg32bounded(len(chromosomes))
+									l = np.random.choice(len(chromosomes), p=chromosomeProbs)
 									random_chromosome = chromosomes[l]
 									if nuc_count < samples[context][sample][nuc]:
 										mutation_tracker[context][sample][nuc][random_chromosome] += 1
@@ -812,6 +795,21 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 	'''
 	# Saves the chromosome as a string in memory and creates a list if a BED file was supplied
 	# tracker = SummaryTracker()
+
+	if updating and any(c in ('ID', 'INDEL', 'ID415') for c in contexts):
+		raise ValueError(
+			"updating=True does not support indel contexts: update_chromosome() overwrites "
+			"bases in place rather than inserting/deleting them, which corrupts chromosome "
+			"coordinates downstream. Simulate indels with updating=False."
+		)
+
+	if bed and mask:
+		raise ValueError(
+			"bed_file and mask cannot be used together: a mask-selected position is an "
+			"absolute genomic coordinate, not an index into the BED-eligible positions, so "
+			"combining them silently selects the wrong position (or raises IndexError). "
+			"Simulate with only one of bed_file or mask at a time."
+		)
 
 	left_over_mutations = {}
 	
@@ -898,7 +896,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 				
 				# Saves an unaltered chromosome, so that future updating of mutations
 				# does not affect additional simulations.
-				sequence = initial_seq
+				sequence = initial_seq.copy() if updating else initial_seq
 				if bed:
 					location_range = len(chrom_range)
 					if location_range == 0:
@@ -1174,7 +1172,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 													if vcf:
 														print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t",seq_final,"\t",tsb_ref[sequence[random_number-1]][1],"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 													else:
-														print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations),complete_indel]), file=out_vcf)
+														print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations),complete_indel]), file=out_vcf)
 
 
 													if seqInfo:
@@ -1224,7 +1222,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 													if vcf:
 														print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t",tsb_ref[sequence[random_number-1]][1],"\t",seq_final,"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 													else:
-														print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",seq_final,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+														print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",seq_final,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 
 													if seqInfo:
 														print(''.join([sample, "\t",chrom,  "\t", str(random_number),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -1332,7 +1330,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 														if vcf:
 															print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", seq_final,"\t",tsb_ref[sequence[random_number-1]][1],"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 														else:
-															print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+															print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 														
 														if seqInfo:
 															print(''.join([sample, "\t",chrom,  "\t", str(random_number),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -1412,7 +1410,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 														if vcf:
 															print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", seq_final,"\t",tsb_ref[sequence[random_number-1]][1],"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 														else:
-															print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+															print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 										
 														if seqInfo:
 															print(''.join([sample, "\t",chrom,  "\t", str(random_number),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -1534,9 +1532,9 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												break
 
 											if vcf:
-												print (''.join([chrom,"\t",str(random_number+1),"\t",sample,"\t", tsb_ref[sequence[random_number-1]][1],"\t",tsb_ref[sequence[random_number-1]][1]+potential_sequence,"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
+												print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", tsb_ref[sequence[random_number-1]][1],"\t",tsb_ref[sequence[random_number-1]][1]+potential_sequence,"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 											else:
-												print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",tsb_ref[sequence[random_number-1]][1]+potential_sequence,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+												print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",tsb_ref[sequence[random_number-1]][1]+potential_sequence,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 											
 											if seqInfo:
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -1648,7 +1646,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												if vcf:
 													print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", tsb_ref[sequence[random_number-1]][1],"\t",tsb_ref[sequence[random_number-1]][1]+potential_sequence,"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 												else:
-													print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",tsb_ref[sequence[random_number-1]][1]+potential_sequence,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+													print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",tsb_ref[sequence[random_number-1]][1]+potential_sequence,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 												if seqInfo:
 													print(''.join([sample, "\t",chrom,  "\t", str(random_number),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
 												if not overlap:
@@ -1883,7 +1881,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 														if vcf:
 															print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", seq_final,"\t",tsb_ref[sequence[random_number-1]][1],"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 														else:
-															print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations),complete_indel]), file=out_vcf)
+															print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations),complete_indel]), file=out_vcf)
 
 														if seqInfo:
 															print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -1934,7 +1932,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 														if vcf:
 															print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", tsb_ref[sequence[random_number-1]][1],"\t",seq_final,"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 														else:	
-															print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",seq_final,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+															print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",seq_final,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 
 														if seqInfo:
 															print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -2043,7 +2041,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 															if vcf:
 																print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", seq_final,"\t",tsb_ref[sequence[random_number-1]][1],"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 															else:
-																print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+																print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 															
 															if seqInfo:
 																print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -2118,7 +2116,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 															if vcf:
 																print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", seq_final,"\t",tsb_ref[sequence[random_number-1]][1],"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 															else:	
-																print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+																print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",seq_final,".",tsb_ref[sequence[random_number-1]][1],".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 											
 															if seqInfo:
 																print(''.join([sample, "\t",chrom,  "\t", str(random_number),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -2258,7 +2256,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 													if vcf:
 														print (''.join([chrom,"\t",str(random_number),"\t",sample,"\t", tsb_ref[sequence[random_number-1]][1],"\t",tsb_ref[sequence[random_number-1]][1]+potential_sequence,"\t.\tSimulations\t",genome,"\t",complete_indel,"\t",strand]), file=out_vcf)
 													else:	
-														print ('\t'.join([".",".","sims",genome,chrom,str(random_number+1),str(random_number+1),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",tsb_ref[sequence[random_number-1]][1]+potential_sequence,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
+														print ('\t'.join([".",".","sims",genome,chrom,str(random_number),str(random_number),strand,".","ID",tsb_ref[sequence[random_number-1]][1],".",tsb_ref[sequence[random_number-1]][1]+potential_sequence,".\t.",sample+"_"+str(simulations), complete_indel]), file=out_vcf)
 													
 													if seqInfo:
 														print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",complete_indel, "\t", strand + "1"]), file=outSeq)
@@ -2355,7 +2353,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											if random_number in recorded_positions:
 												continue
 											mnv_flag = False
-											for i in range(random_number - spacing, random_number + spacing, 1):
+											for i in range(random_number - spacing, random_number + spacing + 1, 1):
 												if i in recorded_positions:
 													mnv_flag = True
 													break
@@ -2377,6 +2375,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",mutNuc_seq[0:2],"[",nuc_keys[nucIndex][mut_save],">",nuc_keys[nucIndex][mut_save+2],"]",mutNuc_seq[3:], "\t","+1"]), file=outSeq)
 						
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 
 
 
@@ -2390,6 +2390,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											if seqInfo:
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",nuc_keys[nucIndex][mut_save:mut_save+2],">",nuc_keys[nucIndex][mut_save+3:mut_save+5],"\t","+1"]), file=outSeq)										
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 
 										mutationsCount[nuc_keys[nucIndex]] -= 1
 										l = 0
@@ -2410,7 +2412,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											if random_number in recorded_positions:
 												continue
 											mnv_flag = False
-											for i in range(random_number - spacing, random_number + spacing, 1):
+											for i in range(random_number - spacing, random_number + spacing + 1, 1):
 												if i in recorded_positions:
 													mnv_flag = True
 													break
@@ -2429,6 +2431,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												revCompMutNuc_seq = revcompl(''.join([tsb_ref[base][1] for base in sequence[random_number - 2:random_number + 3]]))
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",revCompMutNuc_seq[0:2],"[",nuc_keys[nucIndex][mut_save],">",nuc_keys[nucIndex][mut_save+2],"]",revCompMutNuc_seq[3:], "\t","-1"]), file=outSeq)
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 										elif sim == 5:
 											context_up = 'DBS'
 											bases = revcompl(nuc_keys[nucIndex][mut_save+3:mut_save+5])
@@ -2440,6 +2444,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											if seqInfo:
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",nuc_keys[nucIndex][mut_save:mut_save+2],">",nuc_keys[nucIndex][mut_save+3:mut_save+5], "\t","-1"]), file=outSeq)
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 										mutationsCount[nuc_keys[nucIndex]] -= 1
 										l = 0 
 										if mutationsCount[nuc_keys[nucIndex]] == 0:
@@ -2590,7 +2596,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												if random_number in recorded_positions:
 													continue
 												mnv_flag = False
-												for i in range(random_number - spacing, random_number + spacing, 1):
+												for i in range(random_number - spacing, random_number + spacing + 1, 1):
 													if i in recorded_positions:
 														mnv_flag = True
 														break
@@ -2609,6 +2615,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												if seqInfo:
 													print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",nuc_keys_tsb[nuc_bias][nucIndex][2:4],">",nuc_keys_tsb[nuc_bias][nucIndex][5:],"\t","+1"]), file=outSeq)										
 												recorded_positions.add(random_number)
+												if context_up == 'DBS':
+													recorded_positions.add(random_number+1)
 											else:
 												bases = nuc_keys_tsb[nuc_bias][nucIndex][mut_save+2]
 												context_up = 'SNP'
@@ -2623,6 +2631,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 													print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",mutNuc_seq[0:4], "[",nuc_keys_tsb[nuc_bias][nucIndex][mut_save],">",nuc_keys_tsb[nuc_bias][nucIndex][mut_save+2],"]",mutNuc_seq[5:], "\t","+1"]), file=outSeq)
 										
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 											mutationsCountTSB[tsb_type][nuc_keys_tsb[nuc_bias][nucIndex]] -= 1
 
 											l = 0
@@ -2644,7 +2654,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												if random_number in recorded_positions:
 													continue
 												mnv_flag = False
-												for i in range(random_number - spacing, random_number + spacing, 1):
+												for i in range(random_number - spacing, random_number + spacing + 1, 1):
 													if i in recorded_positions:
 														mnv_flag = True
 														break
@@ -2677,6 +2687,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											
 											
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 											mutationsCountTSB[tsb_type][nuc_keys_tsb[rev_tsb_type][nucIndex]] -= 1
 											l = 0
 											if mutationsCountTSB[tsb_type][nuc_keys_tsb[rev_tsb_type][nucIndex]] == 0:
