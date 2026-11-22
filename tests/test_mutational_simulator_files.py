@@ -4,9 +4,11 @@ Uses tmp_path (synthetic BED/mask files) and real MAF fixtures from tests/fixtur
 Run with: pytest tests/test_mutational_simulator_files.py -v
 """
 
+import json
 import os
 import pickle
 import shutil
+import subprocess
 import sys
 
 import pytest
@@ -350,3 +352,157 @@ class TestSimulatorIndelCoordinates:
         maf_start_position = int(maf_row[5])
 
         assert maf_start_position == vcf_pos
+
+
+# ─── sample ordering determinism (audit sigprofilersimulator-2026-05 #4) ──────
+
+SAMPLE_ORDER = ["PD1001a", "PD1002a", "PD1003a", "PD1004a", "PD1005a"]
+NUC = "A[C>A]A"
+
+
+@pytest.fixture
+def catalogue_file(tmp_path):
+    p = tmp_path / "catalogue.txt"
+    header = "MutationType\t" + "\t".join(SAMPLE_ORDER) + "\n"
+    row = NUC + "\t" + "\t".join(["1"] * len(SAMPLE_ORDER)) + "\n"
+    p.write_text(header + row)
+    return str(p)
+
+
+def _sample_names_under_hashseed(seed, func_name, catalogue_file):
+    script = (
+        "import json, sys; "
+        "sys.path.insert(0, {repo!r}); "
+        "from SigProfilerSimulator.mutational_simulator import {func} as fn; "
+        "catalogue_files = {{'96': {path!r}}}; "
+        "log_file = {log!r}; "
+        "{call}"
+        "print(json.dumps(sample_names))"
+    ).format(
+        repo=os.path.join(os.path.dirname(__file__), ".."),
+        func=func_name,
+        path=catalogue_file,
+        log=catalogue_file + ".log",
+        call={
+            "mutation_preparation": "sample_names, samples = fn(catalogue_files, log_file); ",
+            "mutation_preparation_chromosomes": "sample_names, samples, tracker = fn(catalogue_files, '', ['1'], 'proj', log_file); ",
+            "mutation_preparation_region": "sample_names, samples, tracker = fn(catalogue_files, '', 'proj', log_file, '1'); ",
+        }[func_name],
+    )
+    env = dict(os.environ)
+    env["PYTHONHASHSEED"] = str(seed)
+    out = subprocess.run(
+        [sys.executable, "-c", script], env=env, capture_output=True, text=True, check=True,
+    )
+    return json.loads(out.stdout.strip().splitlines()[-1])
+
+
+@pytest.mark.parametrize("func_name", [
+    "mutation_preparation",
+    "mutation_preparation_chromosomes",
+    "mutation_preparation_region",
+])
+class TestSampleOrderDeterminism:
+    def test_order_independent_of_hashseed(self, catalogue_file, func_name):
+        """Finding #4: sample order must not depend on PYTHONHASHSEED."""
+        results = [_sample_names_under_hashseed(seed, func_name, catalogue_file) for seed in (0, 1, 2, 3)]
+        assert all(r == results[0] for r in results), results
+
+    def test_order_matches_file(self, catalogue_file, func_name):
+        result = _sample_names_under_hashseed(0, func_name, catalogue_file)
+        assert result == SAMPLE_ORDER
+
+
+# ─── spacing / overlap enforcement (audit sigprofilersimulator-2026-05 #12, #13) ──
+
+def _write_chrom(tmp_path, pattern_bytes):
+    d = tmp_path / "chroms2"
+    if not d.exists():
+        d.mkdir()
+    (d / "1.txt").write_bytes(pattern_bytes)
+    return str(d) + "/"
+
+
+def _run_sim(chrom_dir, tmp_path, mutation_tracker, contexts, spacing, label):
+    sample = "S1"
+    chrom = "1"
+    output_path = str(tmp_path / ("sim_out_" + label)) + "/"
+    log_file = str(tmp_path / ("sim_log_" + label + ".txt"))
+
+    simulator(
+        sample_names=[sample],
+        mutation_tracker=mutation_tracker,
+        chromosome_string_path=chrom_dir,
+        tsb_ref=TSB_REF,
+        tsb_ref_rev=TSB_REF_REV,
+        simulation_number=1,
+        seed=7,
+        cushion=0,
+        output_path=output_path,
+        updating=False,
+        chromosomes=[chrom],
+        project="spacingdemo",
+        genome="GRCh37",
+        bed=False,
+        bed_file=None,
+        contexts=contexts,
+        overlap=False,
+        project_path=str(tmp_path) + "/",
+        seqInfo=False,
+        log_file=log_file,
+        spacing=spacing,
+        noisePoisson=False,
+        noiseUniform=0,
+        vcf=False,
+        mask=None,
+    )
+
+    out_file = output_path + "1_" + chrom + ".maf"
+    rows = []
+    if os.path.exists(out_file):
+        with open(out_file) as f:
+            rows = [l.rstrip("\n").split("\t") for l in f if l.strip()]
+    return rows
+
+
+class TestSpacingAndOverlapEnforcement:
+    def test_min_spacing_is_symmetric(self, tmp_path):
+        """Finding #12: no two placed SBS6 events may end up exactly `spacing`
+        apart, regardless of which was placed first."""
+        n_pairs = 50
+        pattern = bytes([1, 1, 3] * n_pairs)  # "CCT" repeated: adjacent C,C pairs separated by T
+        chrom_dir = _write_chrom(tmp_path, pattern)
+        mutation_tracker = {"6": {"S1": {"C>A": {"1": n_pairs}}}}
+
+        rows = _run_sim(chrom_dir, tmp_path, mutation_tracker, ["6"], spacing=1, label="spacing")
+        positions = sorted(int(r[5]) for r in rows if r[9] == "SNP")
+
+        assert len(positions) == n_pairs
+        for a, b in zip(positions, positions[1:]):
+            assert b - a > 1, "two SBS6 events placed only %d apart: %r" % (b - a, positions)
+
+    def test_dbs_second_base_is_reserved(self, tmp_path):
+        """Finding #13: a DBS's second base must be reserved so a later event
+        (here an SBS6 at spacing=0) cannot land on it."""
+        length = 60
+        anchor = 30
+        pattern = bytearray([3]) * length  # all 'T'
+        pattern[anchor] = 0      # 'A' (ref base of the DBS)
+        pattern[anchor + 1] = 1  # 'C' (2nd DBS base; the ONLY 'C' in the chromosome)
+        chrom_dir = _write_chrom(tmp_path, bytes(pattern))
+
+        mutation_tracker = {
+            "DBS": {"S1": {"AC>GT": {"1": 1}}},
+            "6": {"S1": {"C>A": {"1": 1}}},
+        }
+
+        rows = _run_sim(chrom_dir, tmp_path, mutation_tracker, ["DBS", "6"], spacing=0, label="dbs")
+        dbs_rows = [r for r in rows if r[9] == "DBS"]
+        snp_rows = [r for r in rows if r[9] == "SNP"]
+
+        assert len(dbs_rows) == 1
+        dbs_pos = int(dbs_rows[0][5])
+        assert not snp_rows, (
+            "an SBS6 event was placed on the DBS's reserved second base: "
+            "DBS at %r, SBS6 rows %r" % (dbs_pos, snp_rows)
+        )

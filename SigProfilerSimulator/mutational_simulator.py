@@ -369,7 +369,7 @@ def mutation_preparation_chromosomes (catalogue_files, matrix_path, chromosomes,
 						sample_index += 1  
 
 
-	sample_names = list(set(sample_names))
+	sample_names = list(dict.fromkeys(sample_names))
 	print("Files successfully read and mutations collected. Mutation assignment starting now.", file=out)
 	print("Files successfully read and mutations collected. Mutation assignment starting now.")
 	out.close()
@@ -431,7 +431,7 @@ def mutation_preparation_region(catalogue_files, matrix_path, project, log_file,
 					sample_index += 1  
 
 
-	sample_names = list(set(sample_names))
+	sample_names = list(dict.fromkeys(sample_names))
 	print("Files successfully read and mutations collected. Mutation assignment starting now.", file=out)
 	print("Files successfully read and mutations collected. Mutation assignment starting now.")
 	out.close()
@@ -489,7 +489,7 @@ def mutation_preparation (catalogue_files, log_file):
 						samples[context][sample][nuc] = int(mutCount)
 					sample_index += 1  
 
-	sample_names = list(set(sample_names))
+	sample_names = list(dict.fromkeys(sample_names))
 	print("Files successfully read and mutations collected. Mutation assignment starting now.", file=out)
 	print("Files successfully read and mutations collected. Mutation assignment starting now.")
 	out.close()
@@ -2329,7 +2329,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											if random_number in recorded_positions:
 												continue
 											mnv_flag = False
-											for i in range(random_number - spacing, random_number + spacing, 1):
+											for i in range(random_number - spacing, random_number + spacing + 1, 1):
 												if i in recorded_positions:
 													mnv_flag = True
 													break
@@ -2351,6 +2351,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",mutNuc_seq[0:2],"[",nuc_keys[nucIndex][mut_save],">",nuc_keys[nucIndex][mut_save+2],"]",mutNuc_seq[3:], "\t","+1"]), file=outSeq)
 						
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 
 
 
@@ -2364,6 +2366,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											if seqInfo:
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",nuc_keys[nucIndex][mut_save:mut_save+2],">",nuc_keys[nucIndex][mut_save+3:mut_save+5],"\t","+1"]), file=outSeq)										
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 
 										mutationsCount[nuc_keys[nucIndex]] -= 1
 										l = 0
@@ -2384,7 +2388,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											if random_number in recorded_positions:
 												continue
 											mnv_flag = False
-											for i in range(random_number - spacing, random_number + spacing, 1):
+											for i in range(random_number - spacing, random_number + spacing + 1, 1):
 												if i in recorded_positions:
 													mnv_flag = True
 													break
@@ -2403,6 +2407,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												revCompMutNuc_seq = revcompl(''.join([tsb_ref[base][1] for base in sequence[random_number - 2:random_number + 3]]))
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",revCompMutNuc_seq[0:2],"[",nuc_keys[nucIndex][mut_save],">",nuc_keys[nucIndex][mut_save+2],"]",revCompMutNuc_seq[3:], "\t","-1"]), file=outSeq)
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 										elif sim == 5:
 											context_up = 'DBS'
 											bases = revcompl(nuc_keys[nucIndex][mut_save+3:mut_save+5])
@@ -2414,6 +2420,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											if seqInfo:
 												print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",nuc_keys[nucIndex][mut_save:mut_save+2],">",nuc_keys[nucIndex][mut_save+3:mut_save+5], "\t","-1"]), file=outSeq)
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 										mutationsCount[nuc_keys[nucIndex]] -= 1
 										l = 0 
 										if mutationsCount[nuc_keys[nucIndex]] == 0:
@@ -2564,7 +2572,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												if random_number in recorded_positions:
 													continue
 												mnv_flag = False
-												for i in range(random_number - spacing, random_number + spacing, 1):
+												for i in range(random_number - spacing, random_number + spacing + 1, 1):
 													if i in recorded_positions:
 														mnv_flag = True
 														break
@@ -2583,6 +2591,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												if seqInfo:
 													print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",nuc_keys_tsb[nuc_bias][nucIndex][2:4],">",nuc_keys_tsb[nuc_bias][nucIndex][5:],"\t","+1"]), file=outSeq)										
 												recorded_positions.add(random_number)
+												if context_up == 'DBS':
+													recorded_positions.add(random_number+1)
 											else:
 												bases = nuc_keys_tsb[nuc_bias][nucIndex][mut_save+2]
 												context_up = 'SNP'
@@ -2597,6 +2607,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 													print(''.join([sample, "\t",chrom,  "\t", str(random_number+1),  "\t",mutNuc_seq[0:4], "[",nuc_keys_tsb[nuc_bias][nucIndex][mut_save],">",nuc_keys_tsb[nuc_bias][nucIndex][mut_save+2],"]",mutNuc_seq[5:], "\t","+1"]), file=outSeq)
 										
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 											mutationsCountTSB[tsb_type][nuc_keys_tsb[nuc_bias][nucIndex]] -= 1
 
 											l = 0
@@ -2618,7 +2630,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 												if random_number in recorded_positions:
 													continue
 												mnv_flag = False
-												for i in range(random_number - spacing, random_number + spacing, 1):
+												for i in range(random_number - spacing, random_number + spacing + 1, 1):
 													if i in recorded_positions:
 														mnv_flag = True
 														break
@@ -2651,6 +2663,8 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 											
 											
 											recorded_positions.add(random_number)
+											if context_up == 'DBS':
+												recorded_positions.add(random_number+1)
 											mutationsCountTSB[tsb_type][nuc_keys_tsb[rev_tsb_type][nucIndex]] -= 1
 											l = 0
 											if mutationsCountTSB[tsb_type][nuc_keys_tsb[rev_tsb_type][nucIndex]] == 0:
