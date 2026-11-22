@@ -21,9 +21,11 @@ from SigProfilerSimulator.mutational_simulator import (
     chrom_proportions_BED,
     combine_simulation_files,
     mut_tracker,
+    noise,
     probability_mask,
     simulator,
 )
+from SigProfilerSimulator.SigProfilerSimulator import probability
 
 # Mirrors the tsb_ref / tsb_ref_rev encoding built in SigProfilerSimulator.py:
 # byte value -> [transcriptional bias, nucleotide]. simulator() takes these as
@@ -595,3 +597,120 @@ class TestIDChromosomeAllocation:
             "B (0.1%% of opportunity) won the residual slot %d/%d times -- "
             "looks uniform, not opportunity-weighted" % (b_got_residual, trials)
         )
+
+
+# ─── simulator() guard rails (audit sigprofilersimulator-2026-05 #18) ─────────
+
+class TestUpdatingIndelGuard:
+    @pytest.mark.parametrize("context", ["ID", "INDEL", "ID415"])
+    def test_updating_with_indel_context_raises(self, context):
+        """Finding #18: updating=True silently corrupts indel coordinates via
+        update_chromosome()'s in-place overwrite; must be rejected instead."""
+        with pytest.raises(ValueError, match="updating=True does not support indel contexts"):
+            simulator(
+                sample_names=[], mutation_tracker={}, chromosome_string_path="",
+                tsb_ref={}, tsb_ref_rev={}, simulation_number=1, seed=1, cushion=0,
+                output_path="", updating=True, chromosomes=[], project="p", genome="g",
+                bed=False, bed_file=None, contexts=[context], overlap=False,
+                project_path="", seqInfo=False, log_file="", spacing=1,
+                noisePoisson=False, noiseUniform=0, vcf=False, mask=None,
+            )
+
+    def test_updating_without_indel_context_does_not_raise_early(self):
+        """A non-indel context with updating=True must not hit the new guard
+        (it will fail later for unrelated reasons given empty fake inputs,
+        which is fine -- we only assert the guard itself does not fire)."""
+        with pytest.raises(Exception) as exc_info:
+            simulator(
+                sample_names=[], mutation_tracker={}, chromosome_string_path="",
+                tsb_ref={}, tsb_ref_rev={}, simulation_number=1, seed=1, cushion=0,
+                output_path="", updating=True, chromosomes=[], project="p", genome="g",
+                bed=False, bed_file=None, contexts=["96"], overlap=False,
+                project_path="", seqInfo=False, log_file="", spacing=1,
+                noisePoisson=False, noiseUniform=0, vcf=False, mask=None,
+            )
+        assert "updating=True does not support indel contexts" not in str(exc_info.value)
+
+
+# ─── noise() mode exclusivity (audit sigprofilersimulator-2026-05 #21) ────────
+
+class TestNoiseModeExclusivity:
+    def test_both_modes_raises(self):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            noise({"A[C>A]A": 10}, noisePoisson=True, noiseUniform=5)
+
+    def test_poisson_alone_still_works(self):
+        result = noise({"A[C>A]A": 10}, noisePoisson=True, noiseUniform=0)
+        assert "A[C>A]A" in result
+
+    def test_uniform_alone_still_works(self):
+        result = noise({"A[C>A]A": 10}, noisePoisson=False, noiseUniform=5)
+        assert "A[C>A]A" in result
+
+
+# ─── probability(mutation_file=...) (audit sigprofilersimulator-2026-05 #24) ──
+
+class TestProbabilityMutationFile:
+    def test_mutation_file_raises_not_implemented(self):
+        with pytest.raises(NotImplementedError):
+            probability(genome="GRCh37", mutation_file="unused.txt")
+
+
+# ─── updating=True must not leak sequence state (audit sigprofilersimulator-2026-05 #17) ─
+
+class TestUpdatingSequenceIsolation:
+    def test_every_simulation_sees_the_pristine_chromosome(self, tmp_path):
+        """Finding #17: sequence = initial_seq is an alias, not a copy, so
+        updating=True mutations from one simulation used to leak into the
+        next. With only 3 eligible 'C' positions and 4 simulations each
+        requesting 1 mutation, every simulation must still succeed."""
+        length = 80
+        c_positions = (10, 35, 60)
+        pattern = bytearray([3]) * length  # all 'T'
+        for p in c_positions:
+            pattern[p] = 1  # 'C'
+        chrom_dir = tmp_path / "chroms3"
+        chrom_dir.mkdir()
+        (chrom_dir / "1.txt").write_bytes(bytes(pattern))
+        chrom_dir_str = str(chrom_dir) + "/"
+
+        output_path = str(tmp_path / "out") + "/"
+        simulator(
+            sample_names=["S1"],
+            mutation_tracker={"6": {"S1": {"C>A": {"1": 1}}}},
+            chromosome_string_path=chrom_dir_str,
+            tsb_ref=TSB_REF,
+            tsb_ref_rev=TSB_REF_REV,
+            simulation_number=4,
+            seed=7,
+            cushion=0,
+            output_path=output_path,
+            updating=True,
+            chromosomes=["1"],
+            project="updatingdemo",
+            genome="GRCh37",
+            bed=False,
+            bed_file=None,
+            contexts=["6"],
+            overlap=False,
+            project_path=str(tmp_path) + "/",
+            seqInfo=False,
+            log_file=str(tmp_path / "log3.txt"),
+            spacing=1,
+            noisePoisson=False,
+            noiseUniform=0,
+            vcf=False,
+            mask=None,
+        )
+
+        for sim_n in (1, 2, 3, 4):
+            out_file = output_path + str(sim_n) + "_1.maf"
+            rows = []
+            if os.path.exists(out_file):
+                with open(out_file) as f:
+                    rows = [l for l in f if l.strip()]
+            assert len(rows) == 1, (
+                "simulation %d produced %d rows (expected 1) -- a prior "
+                "simulation's updating=True edits leaked into this one, "
+                "exhausting the 3 eligible positions" % (sim_n, len(rows))
+            )

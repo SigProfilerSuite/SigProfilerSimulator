@@ -698,3 +698,25 @@ class TestReproducibility:
         maf1, _ = sim_reproducibility
         with open(maf1) as f, open(REPRODUCIBILITY_FIXTURE) as ref:
             assert f.read() == ref.read()
+
+
+# ─── API does not mutate caller state (audit sigprofilersimulator-2026-05 #25) ─
+
+@grch37
+class TestContextsListNotMutated:
+    def test_callers_contexts_list_is_unchanged(self):
+        """Finding #25: SigProfilerSimulator() used to sort the caller's
+        contexts list in place as a side effect."""
+        project_path = _setup_project(VCF_PATH)
+        try:
+            matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
+            my_contexts = ["6", "96"]
+            original_order = list(my_contexts)
+            SigProfilerSimulator(PROJECT, project_path, GENOME, my_contexts,
+                                 simulations=SIMULATIONS, region="1")
+            assert my_contexts == original_order, (
+                "caller's contexts list was reordered in place: %r -> %r"
+                % (original_order, my_contexts)
+            )
+        finally:
+            shutil.rmtree(project_path, ignore_errors=True)

@@ -73,6 +73,11 @@ def probability_mask (chrom, mask):
 		return(maskRanges, maskProbs)
 
 def noise (samples, noisePoisson=False, noiseUniform=0):
+	if noisePoisson and noiseUniform != 0:
+		raise ValueError(
+			"noisePoisson and noiseUniform are mutually exclusive: choose one noise mode."
+		)
+
 	if noisePoisson:
 		for mut in samples:
 			noise_value = np.random.poisson(samples[mut])
@@ -791,6 +796,13 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 	# Saves the chromosome as a string in memory and creates a list if a BED file was supplied
 	# tracker = SummaryTracker()
 
+	if updating and any(c in ('ID', 'INDEL', 'ID415') for c in contexts):
+		raise ValueError(
+			"updating=True does not support indel contexts: update_chromosome() overwrites "
+			"bases in place rather than inserting/deleting them, which corrupts chromosome "
+			"coordinates downstream. Simulate indels with updating=False."
+		)
+
 	left_over_mutations = {}
 	
 	dinuc_non_tsb = ['AC', 'AT', 'CA', 'CG', 'GC', 'TA']
@@ -876,7 +888,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 				
 				# Saves an unaltered chromosome, so that future updating of mutations
 				# does not affect additional simulations.
-				sequence = initial_seq
+				sequence = initial_seq.copy() if updating else initial_seq
 				if bed:
 					location_range = len(chrom_range)
 					if location_range == 0:

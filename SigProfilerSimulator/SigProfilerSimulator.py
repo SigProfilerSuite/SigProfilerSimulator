@@ -97,6 +97,11 @@ def probability (chromosome=None, position=None, mutation=None, context=None, ge
 
         prob = mutation_count/nucleotide_count
         print("The probabilty of seeing", mutation, " on chromosome", chromosome, "at position", str(position), "is equal to:\n\n\t\t",str(prob))
+    else:
+        raise NotImplementedError(
+            "probability(mutation_file=...) is not implemented. "
+            "Call probability() with chromosome/position/mutation/context/genome instead."
+        )
 
 
 
@@ -111,8 +116,8 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
     if project_path[-1] != "/":
         project_path += "/"
 
-    # Sorts the user-provided contexts
-    contexts.sort(reverse=True)
+    # Sorts the user-provided contexts (a copy, so the caller's list is untouched)
+    contexts = sorted(contexts, reverse=True)
 
 
     bed = False
