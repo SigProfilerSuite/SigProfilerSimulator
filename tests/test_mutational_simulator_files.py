@@ -16,7 +16,21 @@ from SigProfilerSimulator.mutational_simulator import (
     bed_ranges,
     combine_simulation_files,
     probability_mask,
+    simulator,
 )
+
+# Mirrors the tsb_ref / tsb_ref_rev encoding built in SigProfilerSimulator.py:
+# byte value -> [transcriptional bias, nucleotide]. simulator() takes these as
+# plain arguments rather than importing them, so tests must supply the same mapping.
+TSB_REF = {0: ['N', 'A'], 1: ['N', 'C'], 2: ['N', 'G'], 3: ['N', 'T'],
+           4: ['T', 'A'], 5: ['T', 'C'], 6: ['T', 'G'], 7: ['T', 'T'],
+           8: ['U', 'A'], 9: ['U', 'C'], 10: ['U', 'G'], 11: ['U', 'T'],
+           12: ['B', 'A'], 13: ['B', 'C'], 14: ['B', 'G'], 15: ['B', 'T'],
+           16: ['N', 'N'], 17: ['T', 'N'], 18: ['U', 'N'], 19: ['B', 'N']}
+TSB_REF_REV = {'N': {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 16},
+               'T': {'A': 4, 'C': 5, 'G': 6, 'T': 7, 'N': 17},
+               'U': {'A': 8, 'C': 9, 'G': 10, 'T': 11, 'N': 18},
+               'B': {'A': 12, 'C': 13, 'G': 14, 'T': 15, 'N': 19}}
 
 FIXTURES_MAF = os.path.join(os.path.dirname(__file__), "fixtures", "maf_intermediates")
 
@@ -166,3 +180,78 @@ class TestCombineSimulationFiles:
         assert "90639784" in content
         assert "14214055" in content
         assert "26072434" in content
+
+
+# ─── simulator: indel coordinate writing (audit sigprofilersimulator-2026-05 #35) ─
+
+@pytest.fixture
+def synthetic_chrom_dir(tmp_path):
+    """A single synthetic chromosome '1': alternating C/T bytes so that any
+    position landed on has mismatching neighbors (repeat_count is always 0),
+    letting the test stay deterministic without depending on fastrand's
+    internal sequence."""
+    d = tmp_path / "chroms"
+    d.mkdir()
+    pattern = bytes([1, 3] * 40)  # 'N'/'C', 'N'/'T' repeated -> "CTCTCT..."
+    (d / "1.txt").write_bytes(pattern)
+    return str(d) + "/"
+
+
+def _run_indel_simulator(synthetic_chrom_dir, tmp_path, vcf, label):
+    sample = "S1"
+    chrom = "1"
+    mutation_tracker = {"ID": {sample: {"1:Del:C:0": {chrom: 1}}}}
+    output_path = str(tmp_path / ("out_" + label)) + "/"
+    if vcf:
+        os.makedirs(output_path + sample + "/")
+    log_file = str(tmp_path / ("log_" + label + ".txt"))
+
+    simulator(
+        sample_names=[sample],
+        mutation_tracker=mutation_tracker,
+        chromosome_string_path=synthetic_chrom_dir,
+        tsb_ref=TSB_REF,
+        tsb_ref_rev=TSB_REF_REV,
+        simulation_number=1,
+        seed=7,
+        cushion=0,
+        output_path=output_path,
+        updating=False,
+        chromosomes=[chrom],
+        project="f35demo",
+        genome="GRCh37",
+        bed=False,
+        bed_file=None,
+        contexts=["ID"],
+        overlap=False,
+        project_path=str(tmp_path) + "/",
+        seqInfo=False,
+        log_file=log_file,
+        spacing=1,
+        noisePoisson=False,
+        noiseUniform=0,
+        vcf=vcf,
+        mask=None,
+    )
+
+    if vcf:
+        out_file = output_path + sample + "/" + sample + "_1_" + chrom + ".vcf"
+    else:
+        out_file = output_path + "1_" + chrom + ".maf"
+    with open(out_file) as f:
+        rows = [l.rstrip("\n").split("\t") for l in f if l.strip()]
+    assert len(rows) == 1, "expected exactly one simulated deletion, got %r" % (rows,)
+    return rows[0]
+
+
+class TestSimulatorIndelCoordinates:
+    def test_maf_start_position_matches_vcf_position(self, synthetic_chrom_dir, tmp_path):
+        """Finding #35: default (MAF) mode must anchor Reference_Allele at the
+        same genomic position that vcf=True mode reports, not one base downstream."""
+        vcf_row = _run_indel_simulator(synthetic_chrom_dir, tmp_path, vcf=True, label="vcf")
+        maf_row = _run_indel_simulator(synthetic_chrom_dir, tmp_path, vcf=False, label="maf")
+
+        vcf_pos = int(vcf_row[1])
+        maf_start_position = int(maf_row[5])
+
+        assert maf_start_position == vcf_pos
