@@ -383,6 +383,25 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
             chromosomes.remove("M")
         if "MT" in chromosomes:
             chromosomes.remove("MT")
+
+        ############################## Resolve the seed for the main-process allocation #####################################################################
+        # Read only the first seed here (the full per-process list is read again,
+        # unchanged, in the "Generate unique seeds" section below) so mut_tracker's
+        # chromosome allocation can use local generators derived from it instead of
+        # Python's/NumPy's unseeded global RNG state. Local generators (not a global
+        # random.seed()/np.random.seed() call) so this never leaves global RNG state
+        # changed as a side effect for the caller.
+        randomize_seed = seed_file is None
+        if randomize_seed:
+            sps_dir, _sps_tail = os.path.split(os.path.dirname(os.path.abspath(__file__)))
+            seed_file = sps_dir + "/SigProfilerSimulator/seeds.txt"
+        with open(seed_file) as f:
+            first_seed = int(f.readline().strip())
+        if randomize_seed:
+            first_seed = int(first_seed / time.time())
+        main_rng = np.random.default_rng(first_seed)
+        main_prng = random.Random(first_seed)
+
         ############################## Begin the simulation process ##################################################################################################
         print()
         if chrom_based:
@@ -390,11 +409,11 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
             reference_sample = sample_names[0]
         elif region:
             sample_names, mut_prep, mut_dict = simScript.mutation_preparation_region(catalogue_files, matrix_path, project, log_file, region)
-            reference_sample = sample_names[0]      
+            reference_sample = sample_names[0]
         else:
             sample_names, mut_prep = simScript.mutation_preparation(catalogue_files, log_file)
             reference_sample = sample_names[0]
-            mut_dict = simScript.mut_tracker(sample_names,  mut_prep, reference_sample, nucleotide_context_files, chromosome_string_path, genome, chromosomes, bed_file, log_file)
+            mut_dict = simScript.mut_tracker(sample_names,  mut_prep, reference_sample, nucleotide_context_files, chromosome_string_path, genome, chromosomes, bed_file, log_file, rng=main_rng, prng=main_prng)
     
 
         if vcf:
@@ -430,12 +449,10 @@ def SigProfilerSimulator (project, project_path, genome, contexts, exome=None, s
 
 
         # Generate unique seeds for each process
+        # (seed_file and randomize_seed were already resolved above, to read the
+        # first seed before mut_tracker; reused here, not re-resolved.)
         log_out.write("\n-------Seeds for random number generation per process------- \n")
         seeds = []
-        randomize_seed = seed_file is None
-        if randomize_seed:
-            sps_dir, tail = os.path.split(os.path.dirname(os.path.abspath(__file__)))
-            seed_file = sps_dir + "/SigProfilerSimulator/seeds.txt"
         with open(seed_file) as f:
             for i in range (0, max_seed, 1):
                 new_seed = int(f.readline().strip())

@@ -1,14 +1,16 @@
 name: CI
 
+# Each commit is tested once: on push to dev. The PR dev -> master is tested
+# once when opened (later commits are covered by the push to dev). master is
+# not tested after the merge, and the sync PR/merge into dev is not retested.
 on:
   push:
     branches:
-      - master
       - dev
   pull_request:
     branches:
       - master
-      - dev
+    types: [opened, reopened]
 
 permissions:
   contents: read

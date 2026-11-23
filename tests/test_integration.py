@@ -700,13 +700,13 @@ class TestReproducibility:
             assert f.read() == ref.read()
 
 
-# ─── API does not mutate caller state (audit sigprofilersimulator-2026-05 #25) ─
+# ─── API does not mutate caller state ──────────────────────────────────────
 
 @grch37
 class TestContextsListNotMutated:
     def test_callers_contexts_list_is_unchanged(self):
-        """Finding #25: SigProfilerSimulator() used to sort the caller's
-        contexts list in place as a side effect."""
+        """SigProfilerSimulator() must not sort the caller's contexts list
+        in place as a side effect."""
         project_path = _setup_project(VCF_PATH)
         try:
             matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
@@ -722,7 +722,7 @@ class TestContextsListNotMutated:
             shutil.rmtree(project_path, ignore_errors=True)
 
 
-# ─── stderr is restored, not left closed (audit sigprofilersimulator-2026-05 #22) ─
+# ─── stderr is restored, not left closed ───────────────────────────────────
 
 @grch37
 class TestStderrRestored:
@@ -740,13 +740,13 @@ class TestStderrRestored:
             shutil.rmtree(project_path, ignore_errors=True)
 
 
-# ─── run manifests don't collide and record all parameters (audit sigprofilersimulator-2026-05 #30) ─
+# ─── run manifests don't collide and record all parameters ────────────────
 
 @grch37
 class TestRunManifest:
     def test_same_day_runs_get_separate_manifests(self):
-        """Finding #30: two runs on the same day must not overwrite each
-        other's log/error manifest."""
+        """Two runs on the same day must not overwrite each other's
+        log/error manifest."""
         project_path = _setup_project(VCF_PATH)
         try:
             matGen.SigProfilerMatrixGeneratorFunc(PROJECT, GENOME, project_path, plot=False)
