@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-22
+
+### Fixed
+
+- fix(simulator): align default-mode indel coordinates with their REF/ALT anchor
+
+- fix(simulator): fix BED chromosome proportions, chr-prefix crash, and range scanning
+
+- fix(simulator): deterministic sample order and symmetric spacing/overlap checks
+
+- fix(simulator): key ID chromosome proportions by chromosome set, weight residuals
+
+- fix(simulator): isolate simulations, reject unsafe combos, stop silent no-ops
+
+- fix(simulator): reject bed+mask together, restore sys.stderr on exit
+
+- fix(simulator): validate inputs early, fix run manifests, correct docs and packaging
+
 ## [1.3.0] - 2026-11-20
 
 ### Added
