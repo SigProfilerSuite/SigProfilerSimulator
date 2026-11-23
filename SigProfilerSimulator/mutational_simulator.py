@@ -72,15 +72,18 @@ def probability_mask (chrom, mask):
 			)
 		return(maskRanges, maskProbs)
 
-def noise (samples, noisePoisson=False, noiseUniform=0):
+def noise (samples, noisePoisson=False, noiseUniform=0, rng=None):
 	if noisePoisson and noiseUniform != 0:
 		raise ValueError(
 			"noisePoisson and noiseUniform are mutually exclusive: choose one noise mode."
 		)
 
+	draw_poisson = rng.poisson if rng is not None else np.random.poisson
+	draw_uniform = rng.uniform if rng is not None else np.random.uniform
+
 	if noisePoisson:
 		for mut in samples:
-			noise_value = np.random.poisson(samples[mut])
+			noise_value = draw_poisson(samples[mut])
 			samples[mut] = noise_value
 		return(samples)
 
@@ -88,7 +91,7 @@ def noise (samples, noisePoisson=False, noiseUniform=0):
 		for mut in samples:
 			lower_bound = samples[mut] - (int((noiseUniform/200)*samples[mut]))
 			upper_bound = samples[mut] + (int((noiseUniform/200)*samples[mut]))
-			noise_value = int(np.random.uniform(lower_bound, upper_bound))
+			noise_value = int(draw_uniform(lower_bound, upper_bound))
 			if noise_value < 0:
 				noise_value = 0
 			# print(samples[mut], lower_bound, upper_bound, noise_value)
@@ -252,7 +255,7 @@ def update_chromosome ( chrom, location, bases, context):
 			chromosome[location+i] = bases[i]
 	return(chromosome)
 
-def random_base (limit_start, limit_end):
+def random_base (limit_start, limit_end, prng=None):
 	'''
 	Returns a random nucleotide.
 
@@ -261,7 +264,8 @@ def random_base (limit_start, limit_end):
 	Returns: A, C, G, or T
 	'''
 
-	return (('ATCG')[random.randint(limit_start,limit_end)])
+	draw = prng.randint if prng is not None else random.randint
+	return (('ATCG')[draw(limit_start,limit_end)])
 
 def random_base_sub (bases):
 	'''
@@ -508,7 +512,7 @@ def mutation_preparation (catalogue_files, log_file):
 
 
 
-def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_files, chromosome_string_path, genome, chromosomes, bed, log_file):
+def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_files, chromosome_string_path, genome, chromosomes, bed, log_file, rng=None, prng=None):
 	'''
 	Returns a dictionary that contains the number of mutations allocated to each chromosome
 		for a given nucleotide context for a given sample.
@@ -537,6 +541,9 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 	This function allocates the mutations based upon the size of the chromosome.
 	
 	'''
+	draw_sample = prng.sample if prng is not None else random.sample
+	draw_choice = rng.choice if rng is not None else np.random.choice
+
 	out = open(log_file, 'a')
 	mutation_tracker = {}
 
@@ -582,7 +589,7 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 
 
 			for sample in sample_names:
-				random_sample = random.sample(list(samples[context]),1)[0]
+				random_sample = draw_sample(list(samples[context]),1)[0]
 				for nuc in samples[context][random_sample]:
 					chrom_index = 0
 					nuc_count = 0
@@ -668,7 +675,7 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 									break
 								else:
 									# l = random.randint(0,len(chromosomes)-1)
-									l = np.random.choice(len(chromosomes), p=probs)
+									l = draw_choice(len(chromosomes), p=probs)
 									if nuc_probs[base_nuc][l] > 0:
 										random_chromosome = chromosomes[l]
 
@@ -693,7 +700,7 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 					chromosomeProbs = pickle.load(probs)
 
 			for sample in sample_names:
-				random_sample = random.sample(list(samples[context]),1)[0]
+				random_sample = draw_sample(list(samples[context]),1)[0]
 				for nuc in samples[context][random_sample]:
 					chrom_index = 0;
 					nuc_count = 0;
@@ -725,7 +732,7 @@ def mut_tracker (sample_names, samples, reference_sample, nucleotide_context_fil
 								if nuc_count == samples[context][sample][nuc]:
 									break
 								else:
-									l = np.random.choice(len(chromosomes), p=chromosomeProbs)
+									l = draw_choice(len(chromosomes), p=chromosomeProbs)
 									random_chromosome = chromosomes[l]
 									if nuc_count < samples[context][sample][nuc]:
 										mutation_tracker[context][sample][nuc][random_chromosome] += 1
@@ -821,7 +828,14 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 	except:
 		seed = seed % 100
 		fastrand.pcg32_seed(seed)
-		
+
+	# Local generators for this worker's own randomness (mask sampling, noise,
+	# inserted-base draws), independent of the global random/numpy state so a
+	# call into simulator() never leaves global RNG state changed as a side
+	# effect. fastrand (above) keeps seeding position draws as before.
+	rng = np.random.default_rng(seed)
+	prng = random.Random(seed)
+
 	if seqInfo:
 		seqOut_path = project_path + "output/vcf_files/simulations/"
 
@@ -964,7 +978,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 							mut_save = 0						
 						
 						mutationsCount = {}
-						random_sample = random.sample(list(mutation_tracker[context]),1)[0]
+						random_sample = prng.sample(list(mutation_tracker[context]),1)[0]
 					
 						for nuc in mutation_tracker[context][random_sample]:
 							mutationsCount[nuc] = mutation_tracker[context][sample][nuc][chrom]
@@ -980,7 +994,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 
 						# Add in noise:
 						if noisePoisson or noiseUniform != 0:
-							mutationsCount = noise(mutationsCount, noisePoisson, noiseUniform)
+							mutationsCount = noise(mutationsCount, noisePoisson, noiseUniform, rng=rng)
 
 
 
@@ -1046,7 +1060,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 
 									break_flag = False
 									if maskRanges:
-										weighted_range = maskRanges[np.random.choice(len(maskRanges), p=maskProbs)]
+										weighted_range = maskRanges[rng.choice(len(maskRanges), p=maskProbs)]
 										random_number = fastrand.pcg32bounded(weighted_range[1]) + weighted_range[0]
 									else:
 										random_number = fastrand.pcg32bounded(location_range)
@@ -1570,12 +1584,12 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 										u = 0
 									# Randomly chooses a location on the current chromosome
 									if maskRanges:
-										weighted_range = maskRanges[np.random.choice(len(maskRanges), p=maskProbs)]
+										weighted_range = maskRanges[rng.choice(len(maskRanges), p=maskProbs)]
 										random_number = fastrand.pcg32bounded(weighted_range[1]) + weighted_range[0]
 									else:
 										random_number = fastrand.pcg32bounded(location_range)
 									if random_number in recorded_positions and not overlap:
-										continue	
+										continue
 									u += 1
 
 									# Assigns a subtype for the chosen position on the chromosome
@@ -1604,11 +1618,11 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 										potential_sequence = ''
 										if int(indels_O[0]) == 1:
 											if subType == 'T':
-												potential_sequence += random_base(0,1)
+												potential_sequence += random_base(0,1,prng=prng)
 												if tsb_ref[sequence[random_number]][1] == 'A':
 													strand = "-"
 											else:
-												potential_sequence += random_base(2,3)
+												potential_sequence += random_base(2,3,prng=prng)
 												if tsb_ref[sequence[random_number]][1] == 'G':
 													strand = "-"
 
@@ -1616,7 +1630,7 @@ def simulator (sample_names, mutation_tracker, chromosome_string_path, tsb_ref, 
 										# INDEL length
 										else:
 											for m in range (0, int(indels_O[0]), 1):
-												potential_sequence += random_base(0,3)
+												potential_sequence += random_base(0,3,prng=prng)
 
 
 										# Ensures that the bases are known and that there are no repeats around the insertion

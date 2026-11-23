@@ -7,10 +7,12 @@ Run with: pytest tests/test_mutational_simulator_files.py -v
 import json
 import os
 import pickle
+import random
 import shutil
 import subprocess
 import sys
 
+import numpy as np
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -599,6 +601,37 @@ class TestIDChromosomeAllocation:
         )
 
 
+# ─── mut_tracker: local generators are independent of global RNG state ─────
+
+class TestMutTrackerLocalGenerators:
+    def test_allocation_ignores_global_state_when_generators_supplied(self, tmp_path):
+        """Passing rng/prng makes the chromosome allocation reproducible from
+        the generators' own seed alone, regardless of what the caller's
+        global random/np.random state happens to be at call time."""
+        chrom_dir = tmp_path / "chroms4"
+        chrom_dir.mkdir()
+        chrom_dir_str = str(chrom_dir) + "/"
+        _write_fake_chrom(chrom_dir, "A", 999)
+        _write_fake_chrom(chrom_dir, "B", 1)
+        chrom_proportions(chrom_dir_str, "FAKE5", ["A", "B"])
+
+        samples = {"ID": {"S1": {"1:Del:C:0": 500}}}
+        log_file = str(tmp_path / "log4.txt")
+
+        def run(global_seed):
+            random.seed(global_seed)
+            np.random.seed(global_seed)
+            return mut_tracker(
+                ["S1"], samples, "S1", {"ID": "unused"}, chrom_dir_str, "FAKE5",
+                ["A", "B"], False, log_file,
+                rng=np.random.default_rng(13), prng=random.Random(13),
+            )
+
+        result_a = run(111)
+        result_b = run(222)
+        assert result_a == result_b
+
+
 # ─── simulator() guard rails ───────────────────────────────────────────────
 
 class TestUpdatingIndelGuard:
@@ -714,6 +747,61 @@ class TestUpdatingSequenceIsolation:
                 "simulation's updating=True edits leaked into this one, "
                 "exhausting the 3 eligible positions" % (sim_n, len(rows))
             )
+
+
+# ─── simulator(): local generators are independent of global RNG state ─────
+
+class TestSimulatorLocalRNG:
+    def test_indel_mask_noise_and_insertions_are_seed_reproducible(self, tmp_path):
+        """Mask sampling, noise, and inserted bases inside simulator() are
+        driven by generators derived from `seed`, not from the caller's
+        global random/np.random state: two runs with the same `seed` but a
+        different global state beforehand must produce byte-identical output."""
+        length = 2000
+        pattern = bytes([1, 3] * (length // 2))  # alternating 'C'/'T'
+        chrom_dir = tmp_path / "chroms6"
+        chrom_dir.mkdir()
+        (chrom_dir / "1.txt").write_bytes(pattern)
+        chrom_dir_str = str(chrom_dir) + "/"
+
+        mask_file = tmp_path / "mask6.tsv"
+        mask_file.write_text(
+            "Chrom\tStart\tEnd\tProbability\n"
+            "1\t0\t999\t0.5\n"
+            "1\t1000\t1999\t0.5\n"
+        )
+
+        mutation_tracker = {
+            "ID": {"S1": {
+                "1:Del:C:0": {"1": 20},
+                "1:Ins:T:0": {"1": 20},
+                "1:Ins:C:0": {"1": 20},
+                "3:Ins:T:0": {"1": 20},
+            }}
+        }
+
+        def run(global_seed, label):
+            random.seed(global_seed)
+            np.random.seed(global_seed)
+            output_path = str(tmp_path / ("out6_" + label)) + "/"
+            simulator(
+                sample_names=["S1"], mutation_tracker=mutation_tracker,
+                chromosome_string_path=chrom_dir_str, tsb_ref=TSB_REF, tsb_ref_rev=TSB_REF_REV,
+                simulation_number=1, seed=42, cushion=0, output_path=output_path,
+                updating=False, chromosomes=["1"], project="rngdemo", genome="GRCh37",
+                bed=False, bed_file=None, contexts=["ID"], overlap=False,
+                project_path=str(tmp_path) + "/", seqInfo=False,
+                log_file=str(tmp_path / ("log6_" + label + ".txt")),
+                spacing=1, noisePoisson=True, noiseUniform=0, vcf=False,
+                mask=str(mask_file),
+            )
+            with open(output_path + "1_1.maf") as f:
+                return f.read()
+
+        result_a = run(111, "a")
+        result_b = run(222, "b")
+        assert result_a == result_b
+        assert result_a, "expected at least one simulated mutation"
 
 
 # ─── bed + mask combination is rejected ────────────────────────────────────
