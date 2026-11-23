@@ -54,7 +54,7 @@ MAF_HEADER = "\t".join([
 
 @pytest.fixture
 def bed_file(tmp_path):
-    """Standard headerless BED, as produced by real tools (audit finding #8)."""
+    """Standard headerless BED, as produced by real tools."""
     content = "1\t100\t105\n1\t200\t203\n"
     p = tmp_path / "test.bed"
     p.write_text(content)
@@ -91,7 +91,7 @@ class TestBedRanges:
         assert sorted(result) == expected
 
     def test_cushion_excludes_edges(self, tmp_path):
-        """Finding #9: cushion excludes edge bases, it does not expand the range."""
+        """cushion excludes edge bases, it does not expand the range."""
         p = tmp_path / "cushion.bed"
         p.write_text("1\t100\t110\n")
         result = bed_ranges("1", str(p), cushion=2)
@@ -118,7 +118,7 @@ class TestBedRanges:
         assert result == sorted(set(result))
 
     def test_headerless_bed_is_not_truncated(self, tmp_path):
-        """Finding #8: a leading data row must not be mistaken for a header."""
+        """A leading data row must not be mistaken for a header."""
         p = tmp_path / "headerless.bed"
         p.write_text("1\t100\t103\n")
         result = bed_ranges("1", str(p), cushion=0)
@@ -131,16 +131,16 @@ class TestBedRanges:
         assert sorted(result) == [100, 101, 102]
 
     def test_target_chromosome_not_skipped_while_scanning(self, tmp_path):
-        """Finding #8: searching past several non-matching rows must not skip
-        rows via a double-advanced file iterator."""
+        """Searching past several non-matching rows must not skip rows via a
+        double-advanced file iterator."""
         p = tmp_path / "scan.bed"
         p.write_text("2\t0\t5\n3\t0\t5\n4\t0\t5\n5\t0\t5\n1\t100\t103\n")
         result = bed_ranges("1", str(p), cushion=0)
         assert sorted(result) == [100, 101, 102]
 
     def test_non_contiguous_chromosome_rows_all_collected(self, tmp_path):
-        """Finding #8: rows for the target chromosome need not be grouped
-        together; a later unrelated chromosome must not stop the scan."""
+        """Rows for the target chromosome need not be grouped together; a
+        later unrelated chromosome must not stop the scan."""
         p = tmp_path / "interleaved.bed"
         p.write_text("1\t100\t103\n2\t0\t5\n1\t200\t203\n")
         result = bed_ranges("1", str(p), cushion=0)
@@ -152,8 +152,8 @@ class TestBedRanges:
 
 class TestChromProportionsBED:
     def test_proportions_match_eligible_base_counts(self, tmp_path):
-        """Finding #6: proportions must reflect each chromosome's share of the
-        total eligible bases (reproduces the audit's 200/50 example)."""
+        """Proportions must reflect each chromosome's share of the total
+        eligible bases."""
         bed = tmp_path / "two_chrom.bed"
         bed.write_text("1\t0\t200\n2\t0\t50\n")
         chrom_dir = tmp_path / "chroms"
@@ -178,7 +178,7 @@ class TestChromProportionsBED:
         assert sum(probs) == pytest.approx(1.0)
 
     def test_chr_prefixed_names_do_not_raise(self, tmp_path):
-        """Finding #7: chr-prefixed names must not cause a KeyError."""
+        """chr-prefixed names must not cause a KeyError."""
         bed = tmp_path / "chr_prefixed.bed"
         bed.write_text("chr1\t0\t100\nchr2\t0\t100\n")
         chrom_dir = tmp_path / "chroms"
@@ -283,7 +283,7 @@ class TestCombineSimulationFiles:
         assert "26072434" in content
 
 
-# ─── simulator: indel coordinate writing (audit sigprofilersimulator-2026-05 #35) ─
+# ─── simulator: indel coordinate writing ───────────────────────────────────
 
 @pytest.fixture
 def synthetic_chrom_dir(tmp_path):
@@ -347,8 +347,8 @@ def _run_indel_simulator(synthetic_chrom_dir, tmp_path, vcf, label):
 
 class TestSimulatorIndelCoordinates:
     def test_maf_start_position_matches_vcf_position(self, synthetic_chrom_dir, tmp_path):
-        """Finding #35: default (MAF) mode must anchor Reference_Allele at the
-        same genomic position that vcf=True mode reports, not one base downstream."""
+        """Default (MAF) mode must anchor Reference_Allele at the same
+        genomic position that vcf=True mode reports, not one base downstream."""
         vcf_row = _run_indel_simulator(synthetic_chrom_dir, tmp_path, vcf=True, label="vcf")
         maf_row = _run_indel_simulator(synthetic_chrom_dir, tmp_path, vcf=False, label="maf")
 
@@ -358,7 +358,7 @@ class TestSimulatorIndelCoordinates:
         assert maf_start_position == vcf_pos
 
 
-# ─── sample ordering determinism (audit sigprofilersimulator-2026-05 #4) ──────
+# ─── sample ordering determinism ───────────────────────────────────────────
 
 SAMPLE_ORDER = ["PD1001a", "PD1002a", "PD1003a", "PD1004a", "PD1005a"]
 NUC = "A[C>A]A"
@@ -408,7 +408,7 @@ def _sample_names_under_hashseed(seed, func_name, catalogue_file):
 ])
 class TestSampleOrderDeterminism:
     def test_order_independent_of_hashseed(self, catalogue_file, func_name):
-        """Finding #4: sample order must not depend on PYTHONHASHSEED."""
+        """Sample order must not depend on PYTHONHASHSEED."""
         results = [_sample_names_under_hashseed(seed, func_name, catalogue_file) for seed in (0, 1, 2, 3)]
         assert all(r == results[0] for r in results), results
 
@@ -417,7 +417,7 @@ class TestSampleOrderDeterminism:
         assert result == SAMPLE_ORDER
 
 
-# ─── spacing / overlap enforcement (audit sigprofilersimulator-2026-05 #12, #13) ──
+# ─── spacing / overlap enforcement ─────────────────────────────────────────
 
 def _write_chrom(tmp_path, pattern_bytes):
     d = tmp_path / "chroms2"
@@ -471,8 +471,8 @@ def _run_sim(chrom_dir, tmp_path, mutation_tracker, contexts, spacing, label):
 
 class TestSpacingAndOverlapEnforcement:
     def test_min_spacing_is_symmetric(self, tmp_path):
-        """Finding #12: no two placed SBS6 events may end up exactly `spacing`
-        apart, regardless of which was placed first."""
+        """No two placed SBS6 events may end up exactly `spacing` apart,
+        regardless of which was placed first."""
         n_pairs = 50
         pattern = bytes([1, 1, 3] * n_pairs)  # "CCT" repeated: adjacent C,C pairs separated by T
         chrom_dir = _write_chrom(tmp_path, pattern)
@@ -486,8 +486,8 @@ class TestSpacingAndOverlapEnforcement:
             assert b - a > 1, "two SBS6 events placed only %d apart: %r" % (b - a, positions)
 
     def test_dbs_second_base_is_reserved(self, tmp_path):
-        """Finding #13: a DBS's second base must be reserved so a later event
-        (here an SBS6 at spacing=0) cannot land on it."""
+        """A DBS's second base must be reserved so a later event (here an
+        SBS6 at spacing=0) cannot land on it."""
         length = 60
         anchor = 30
         pattern = bytearray([3]) * length  # all 'T'
@@ -512,7 +512,7 @@ class TestSpacingAndOverlapEnforcement:
         )
 
 
-# ─── ID chromosome allocation (audit sigprofilersimulator-2026-05 #10, #11) ───
+# ─── ID chromosome allocation ──────────────────────────────────────────────
 
 def _write_fake_chrom(chrom_dir, name, length):
     (chrom_dir / (name + ".txt")).write_bytes(b"A" * length)
@@ -520,8 +520,8 @@ def _write_fake_chrom(chrom_dir, name, length):
 
 class TestIDChromosomeAllocation:
     def test_male_and_female_caches_do_not_collide(self, tmp_path):
-        """Finding #10: a male run's cached proportions (with Y) and a female
-        run's (without Y) must coexist, not overwrite each other, so a stale
+        """A male run's cached proportions (with Y) and a female run's
+        (without Y) must coexist, not overwrite each other, so a stale
         vector is never read misaligned against the wrong chromosome list."""
         chrom_dir = tmp_path / "chroms"
         chrom_dir.mkdir()
@@ -566,8 +566,8 @@ class TestIDChromosomeAllocation:
         assert allocation == {"X": 4, "1": 6}, allocation
 
     def test_residual_allocation_is_opportunity_weighted(self, tmp_path):
-        """Finding #11: the leftover-mutation residual must favor chromosomes
-        by their genomic opportunity, not be uniform."""
+        """The leftover-mutation residual must favor chromosomes by their
+        genomic opportunity, not be uniform."""
         chrom_dir = tmp_path / "chroms2"
         chrom_dir.mkdir()
         chrom_dir_str = str(chrom_dir) + "/"
@@ -599,12 +599,12 @@ class TestIDChromosomeAllocation:
         )
 
 
-# ─── simulator() guard rails (audit sigprofilersimulator-2026-05 #18) ─────────
+# ─── simulator() guard rails ───────────────────────────────────────────────
 
 class TestUpdatingIndelGuard:
     @pytest.mark.parametrize("context", ["ID", "INDEL", "ID415"])
     def test_updating_with_indel_context_raises(self, context):
-        """Finding #18: updating=True silently corrupts indel coordinates via
+        """updating=True silently corrupts indel coordinates via
         update_chromosome()'s in-place overwrite; must be rejected instead."""
         with pytest.raises(ValueError, match="updating=True does not support indel contexts"):
             simulator(
@@ -632,7 +632,7 @@ class TestUpdatingIndelGuard:
         assert "updating=True does not support indel contexts" not in str(exc_info.value)
 
 
-# ─── noise() mode exclusivity (audit sigprofilersimulator-2026-05 #21) ────────
+# ─── noise() mode exclusivity ──────────────────────────────────────────────
 
 class TestNoiseModeExclusivity:
     def test_both_modes_raises(self):
@@ -648,7 +648,7 @@ class TestNoiseModeExclusivity:
         assert "A[C>A]A" in result
 
 
-# ─── probability(mutation_file=...) (audit sigprofilersimulator-2026-05 #24) ──
+# ─── probability(mutation_file=...) ────────────────────────────────────────
 
 class TestProbabilityMutationFile:
     def test_mutation_file_raises_not_implemented(self):
@@ -656,14 +656,14 @@ class TestProbabilityMutationFile:
             probability(genome="GRCh37", mutation_file="unused.txt")
 
 
-# ─── updating=True must not leak sequence state (audit sigprofilersimulator-2026-05 #17) ─
+# ─── updating=True must not leak sequence state ────────────────────────────
 
 class TestUpdatingSequenceIsolation:
     def test_every_simulation_sees_the_pristine_chromosome(self, tmp_path):
-        """Finding #17: sequence = initial_seq is an alias, not a copy, so
-        updating=True mutations from one simulation used to leak into the
-        next. With only 3 eligible 'C' positions and 4 simulations each
-        requesting 1 mutation, every simulation must still succeed."""
+        """sequence = initial_seq is an alias, not a copy, so updating=True
+        mutations from one simulation must not leak into the next. With
+        only 3 eligible 'C' positions and 4 simulations each requesting 1
+        mutation, every simulation must still succeed."""
         length = 80
         c_positions = (10, 35, 60)
         pattern = bytearray([3]) * length  # all 'T'
@@ -716,12 +716,12 @@ class TestUpdatingSequenceIsolation:
             )
 
 
-# ─── bed + mask combination is rejected (audit sigprofilersimulator-2026-05 #20) ─
+# ─── bed + mask combination is rejected ────────────────────────────────────
 
 class TestBedMaskGuard:
     def test_bed_and_mask_together_raises(self):
-        """Finding #20: a mask-selected coordinate is absolute, not a BED-array
-        index; combining bed_file and mask silently mixes coordinate systems."""
+        """A mask-selected coordinate is absolute, not a BED-array index;
+        combining bed_file and mask silently mixes coordinate systems."""
         with pytest.raises(ValueError, match="bed_file and mask cannot be used together"):
             simulator(
                 sample_names=[], mutation_tracker={}, chromosome_string_path="",
@@ -745,7 +745,7 @@ class TestBedMaskGuard:
         assert "bed_file and mask cannot be used together" not in str(exc_info.value)
 
 
-# ─── early parameter validation (audit sigprofilersimulator-2026-05 #26) ──────
+# ─── early parameter validation ────────────────────────────────────────────
 
 class TestParameterValidation:
     BASE_KWARGS = dict(
